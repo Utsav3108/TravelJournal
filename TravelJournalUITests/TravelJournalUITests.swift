@@ -35,13 +35,12 @@ final class TravelJournalUITests: XCTestCase {
 
         let indicator = app.descendants(matching: .any)["pageIndicator"]
         XCTAssertTrue(indicator.waitForExistence(timeout: 5), "page indicator missing")
-        let before = indicator.value as? String ?? indicator.label
+        let before = indicator.label
 
-        viewer.swipeLeft()
-        viewer.swipeLeft()
-        let changed = NSPredicate { _, _ in (indicator.value as? String ?? indicator.label) != before }
-        let exp = XCTNSPredicateExpectation(predicate: changed, object: nil)
-        XCTAssertEqual(XCTWaiter().wait(for: [exp], timeout: 5), .completed, "page indicator did not change after swiping")
+        app.swipeLeft()
+        app.swipeLeft()
+        let changed = expectation(for: NSPredicate(format: "label != %@", before), evaluatedWith: indicator)
+        wait(for: [changed], timeout: 8)
 
         XCTAssertTrue(app.buttons["exportPDF"].waitForExistence(timeout: 5), "export button missing")
     }

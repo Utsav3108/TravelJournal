@@ -47,6 +47,7 @@ struct StoryViewerContent: View {
                 indicator
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("storyViewer")
         .navigationTitle(journey.title.isEmpty ? "Story" : journey.title)
         .navigationBarTitleDisplayMode(.inline)

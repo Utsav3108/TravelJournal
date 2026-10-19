@@ -2,7 +2,7 @@ import Foundation
 
 /// Deterministic randomness: FNV-1a 64 over a stable string key, then splitmix64.
 /// Never use `hashValue` (randomised per launch). Freeze constants: changing them restyles every journey.
-enum Seed {
+nonisolated enum Seed {
     static let version = 1
 
     static func fnv1a(_ s: String) -> UInt64 {
@@ -26,7 +26,7 @@ enum Seed {
     }
 }
 
-struct SeededStream {
+nonisolated struct SeededStream {
     private var state: UInt64
 
     init(_ id: String, _ salt: String) {

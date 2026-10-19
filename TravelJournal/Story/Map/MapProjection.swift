@@ -65,7 +65,7 @@ nonisolated enum MapProjection {
 
     /// Stable disk-cache key (FNV-1a over rounded coordinates, size and scale).
     static func cacheKey(_ pts: [GeoPoint], size: CGSize, scale: CGFloat) -> String {
-        var s = "v1|\(Int(size.width.rounded()))x\(Int(size.height.rounded()))@\(Int(scale))"
+        var s = "v2|\(Int(size.width.rounded()))x\(Int(size.height.rounded()))@\(Int(scale))"
         for p in pts { s += String(format: "|%.5f,%.5f", p.lat, p.lon) }
         var h: UInt64 = 0xcbf29ce484222325
         for b in s.utf8 { h ^= UInt64(b); h = h &* 0x100000001b3 }
@@ -117,5 +117,60 @@ nonisolated enum OverviewStatsFormat {
         if h == 0 { return "\(r) min" }
         if r == 0 { return "\(h) h" }
         return "\(h) h \(r) min"
+    }
+}
+
+/// Pin badge de-overlap. Anchors (true positions) stay on the route line; the numbered badge may be
+/// pushed outward. Deterministic and order-stable: pairs are visited in index order, coincident
+/// points separate along a fixed per-index angle, no randomness.
+nonisolated enum PinLayout {
+    static let diameter: CGFloat = 26
+
+    static func badges(anchors: [CGPoint], bounds: CGSize, diameter: CGFloat = PinLayout.diameter, gap: CGFloat = 12, inset: CGFloat = 3) -> [CGPoint] {
+        var p = anchors
+        let n = p.count
+        guard n > 0 else { return [] }
+        let minD = diameter + gap
+        let r = diameter / 2 + inset
+        func clamp(_ q: CGPoint) -> CGPoint {
+            CGPoint(x: min(max(q.x, r), max(bounds.width - r, r)), y: min(max(q.y, r), max(bounds.height - r, r)))
+        }
+        p = p.map(clamp)
+        for _ in 0..<400 {
+            var moved = false
+            for i in 0..<n {
+                for j in (i + 1)..<max(n, i + 1) {
+                    var dx = p[j].x - p[i].x, dy = p[j].y - p[i].y
+                    var d = (dx * dx + dy * dy).squareRoot()
+                    if d >= minD { continue }
+                    if d < 0.01 {
+                        let a = Double(j) * 2.399963      // golden angle: fixed per index
+                        dx = CGFloat(cos(a)); dy = CGFloat(sin(a)); d = 1
+                    }
+                    let push = (minD - d) / 2 + 0.05
+                    let ux = dx / d, uy = dy / d
+                    p[i] = clamp(CGPoint(x: p[i].x - ux * push, y: p[i].y - uy * push))
+                    p[j] = clamp(CGPoint(x: p[j].x + ux * push, y: p[j].y + uy * push))
+                    moved = true
+                }
+            }
+            if !moved { break }
+        }
+        return p
+    }
+}
+
+/// Leg summary rows ("taxi · 18 min · 5.2 km"), pure.
+nonisolated enum OverviewLegsFormat {
+    static func rows(_ model: OverviewModel) -> [(route: String, detail: String)] {
+        model.legs.enumerated().compactMap { i, leg in
+            guard model.stops.indices.contains(i + 1) else { return nil }
+            var parts: [String] = []
+            if let m = leg.modeRaw { parts.append(m) }
+            if let min = leg.minutes { parts.append(OverviewStatsFormat.duration(min)) }
+            if let km = leg.km, km > 0 { parts.append(OverviewStatsFormat.kmText(km)) }
+            guard !parts.isEmpty else { return nil }
+            return ("\(model.stops[i].number)→\(model.stops[i + 1].number)", parts.joined(separator: " · "))
+        }
     }
 }

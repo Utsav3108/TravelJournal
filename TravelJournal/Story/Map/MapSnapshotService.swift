@@ -26,7 +26,7 @@ final class MapSnapshotService {
     /// Standard map card size for a page.
     nonisolated static func mapSize(for metrics: PageMetrics) -> CGSize {
         let w = max(metrics.size.width - 2 * metrics.margin - 12, 100)   // minus 6pt frame each side
-        let h = metrics.mode == .print ? 328 : min(260, w * 0.76)
+        let h = metrics.mode == .print ? 400 : min(260, w * 0.76)
         return CGSize(width: w, height: h)
     }
 
@@ -140,7 +140,7 @@ final class MapSnapshotService {
 
         let vignette = CIFilter.vignette()
         vignette.inputImage = out
-        vignette.intensity = 0.3
+        vignette.intensity = 0.15
         vignette.radius = Float(max(extent.width, extent.height) / 70)
         out = vignette.outputImage ?? out
 

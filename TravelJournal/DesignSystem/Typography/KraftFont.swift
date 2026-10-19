@@ -2,7 +2,7 @@ import SwiftUI
 import CoreText
 
 /// Verified PostScript names (see Resources/Fonts; Lora/Caveat statics instanced from Google variable fonts).
-enum KraftFontName {
+nonisolated enum KraftFontName {
     static let allura = "Allura-Regular"
     static let lora = "Lora-Regular"
     static let loraItalic = "LoraItalic-Italic"

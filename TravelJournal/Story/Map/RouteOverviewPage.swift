@@ -24,6 +24,7 @@ struct RouteOverviewPage: View {
                 mapCard
                 OverviewStatsStrip(stats: model.stats)
                 stopList
+                if metrics.mode == .print { legsSummary }
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, metrics.margin)
@@ -85,6 +86,7 @@ struct RouteOverviewPage: View {
         let pts = snap.pins.map { CGPoint(x: $0.x * sx, y: $0.y * sy) }
         let indices = snap.stopIndices.count == pts.count ? snap.stopIndices : Array(pts.indices)
         let segs = MapProjection.segments(located: indices, legCount: model.legs.count)
+        let badges = PinLayout.badges(anchors: pts, bounds: size)
         ZStack {
             // Vector route line.
             Path { p in
@@ -109,16 +111,29 @@ struct RouteOverviewPage: View {
                 }
             }
 
+            // Anchor dots (true positions) + leader lines for badges that were moved.
             ForEach(Array(pts.enumerated()), id: \.offset) { k, pt in
+                let b = badges[k]
+                if hypot(b.x - pt.x, b.y - pt.y) > 1 {
+                    Path { p in p.move(to: pt); p.addLine(to: b) }
+                        .stroke(KraftColor.route, style: StrokeStyle(lineWidth: 1, lineCap: .round))
+                }
+                Circle().fill(KraftColor.route).frame(width: 6, height: 6)
+                    .overlay(Circle().stroke(KraftColor.polaroidWhite, lineWidth: 1))
+                    .position(pt)
+            }
+            .accessibilityHidden(true)
+
+            ForEach(Array(pts.enumerated()), id: \.offset) { k, _ in
                 let stopIdx = indices[k]
                 if model.stops.indices.contains(stopIdx) {
                     let stop = model.stops[stopIdx]
                     pin(number: stop.number)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 32, height: 32)
                         .contentShape(Rectangle())
                         .onTapGesture { if interactive { onPinTap?(stop.id) } }
                         .allowsHitTesting(interactive && onPinTap != nil)
-                        .position(pt)
+                        .position(badges[k])
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("Stop \(stop.number), \(stop.name)")
                         .accessibilityAddTraits(onPinTap != nil && interactive ? .isButton : [])
@@ -135,6 +150,28 @@ struct RouteOverviewPage: View {
             .background(Circle().fill(KraftColor.route))
             .overlay(Circle().stroke(KraftColor.polaroidWhite, lineWidth: 1.5))
             .shadow(color: KraftColor.shadow, radius: 1.5, y: 1)
+    }
+
+    // MARK: Legs summary (print)
+
+    /// "1 -> 2   walk · 9 min · 0.6 km" per leg; fills the lower A4 page.
+    @ViewBuilder
+    private var legsSummary: some View {
+        let rows = OverviewLegsFormat.rows(model)
+        if !rows.isEmpty && model.stops.count <= 8 {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Legs").stampLabel().foregroundStyle(KraftColor.inkSoft)
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, r in
+                    HStack(spacing: 8) {
+                        Text(r.route).font(KraftFont.label(11)).foregroundStyle(KraftColor.route).frame(width: 34, alignment: .trailing)
+                        Text(r.detail).font(KraftFont.bodyItalic(13)).foregroundStyle(KraftColor.inkSoft)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 4)
+            .accessibilityElement(children: .combine)
+        }
     }
 
     // MARK: Stop list

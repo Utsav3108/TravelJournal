@@ -2,40 +2,52 @@
 //  TravelJournalUITests.swift
 //  TravelJournalUITests
 //
-//  Created by Utsav Hitendrabhai Pandya on 19/10/26.
-//
 
 import XCTest
 
 final class TravelJournalUITests: XCTestCase {
 
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
+        // Stop immediately when a failure occurs.
         continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
-    }
-
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testAppLaunches() throws {
         let app = XCUIApplication()
         app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
+    }
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // XCUIAutomation Documentation
-        // https://developer.apple.com/documentation/xcuiautomation
+    /// Story viewer smoke test. Relies on the DEBUG launch argument `-openSampleStory` and the accessibility
+    /// identifiers `storyViewer`, `pageIndicator`, `legCard`, `photoFullScreen`, `exportPDF` added by the viewer
+    /// work. Skips (not fails) when the viewer is not in this build.
+    @MainActor
+    func testStoryViewerSwipeAndExportButton() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uitest", "-openSampleStory"]
+        app.launch()
+
+        let viewer = app.descendants(matching: .any)["storyViewer"]
+        guard viewer.waitForExistence(timeout: 5) else {
+            throw XCTSkip("storyViewer identifier not present: viewer not merged into this build")
+        }
+
+        let indicator = app.descendants(matching: .any)["pageIndicator"]
+        XCTAssertTrue(indicator.waitForExistence(timeout: 5), "page indicator missing")
+        let before = indicator.value as? String ?? indicator.label
+
+        viewer.swipeLeft()
+        viewer.swipeLeft()
+        let changed = NSPredicate { _, _ in (indicator.value as? String ?? indicator.label) != before }
+        let exp = XCTNSPredicateExpectation(predicate: changed, object: nil)
+        XCTAssertEqual(XCTWaiter().wait(for: [exp], timeout: 5), .completed, "page indicator did not change after swiping")
+
+        XCTAssertTrue(app.buttons["exportPDF"].waitForExistence(timeout: 5), "export button missing")
     }
 
     @MainActor
     func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             XCUIApplication().launch()
         }

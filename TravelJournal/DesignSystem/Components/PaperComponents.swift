@@ -216,8 +216,11 @@ struct ArcText: View {
                     .rotationEffect(.degrees(angles[i]))
             }
         }
-        .frame(width: 0, height: 0)
+        // A real frame: a 0x0 frame makes ImageRenderer (PNG/PDF export) drop the glyphs.
+        .frame(width: box, height: box)
     }
+
+    private var box: CGFloat { 2 * (radius + fontSize + 4) }
 
     private func glyphWidth(_ c: Character) -> CGFloat {
         let f = UIFont(name: KraftFontName.elite, size: fontSize) ?? UIFont.systemFont(ofSize: fontSize)

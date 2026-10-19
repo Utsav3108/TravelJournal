@@ -12,7 +12,7 @@ import Foundation
 /// Seed lives in the MainActor-default design system, so these functions are MainActor.
 @MainActor
 enum RouteGeometry {
-    static let tRange: ClosedRange<Double> = 0.35...0.7
+    static let tRange: ClosedRange<Double> = 0.87...0.92   // bottom band: keeps the connector slot clear of the story card on A4
     static let exitEdge: PageEdge = .right
 
     /// Deterministic `t` for a leg key.

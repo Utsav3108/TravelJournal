@@ -5,6 +5,7 @@ import SwiftData
 enum AppRoute: Hashable {
     case journeyDetail(PersistentIdentifier)
     case stopEditor(journey: PersistentIdentifier, stop: PersistentIdentifier?)
+    case story(PersistentIdentifier)
 }
 
 extension View {
@@ -14,6 +15,7 @@ extension View {
             switch route {
             case .journeyDetail(let id): JourneyDetailView(journeyID: id)
             case .stopEditor(let journey, let stop): StopEditorRouteView(journeyID: journey, stopID: stop)
+            case .story(let id): StoryViewerView(journeyID: id)
             }
         }
     }

@@ -12,8 +12,8 @@ extension View {
     func appDestinations() -> some View {
         navigationDestination(for: AppRoute.self) { route in
             switch route {
-            case .journeyDetail(let id): JourneyDetailPlaceholderView(journeyID: id)
-            case .stopEditor(let journey, _): StopEditorPlaceholderView(journeyID: journey)
+            case .journeyDetail(let id): JourneyDetailView(journeyID: id)
+            case .stopEditor(let journey, let stop): StopEditorRouteView(journeyID: journey, stopID: stop)
             }
         }
     }

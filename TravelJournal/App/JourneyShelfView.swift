@@ -33,6 +33,18 @@ struct JourneyShelfView: View {
                 #endif
             }
             .appDestinations()
+            #if DEBUG
+            .task {
+                // Debug launch args: -openSample (journey detail), -openSampleStop (stop editor)
+                let args = ProcessInfo.processInfo.arguments
+                guard args.contains("-openSample") || args.contains("-openSampleStop") else { return }
+                let j = journeys.first ?? SampleData.mumbai(in: context)
+                path = [.journeyDetail(j.persistentModelID)]
+                if args.contains("-openSampleStop"), let s = j.orderedStops.first {
+                    path.append(.stopEditor(journey: j.persistentModelID, stop: s.persistentModelID))
+                }
+            }
+            #endif
             .sheet(isPresented: $showCreate) {
                 CreateJourneyView { journey in
                     path.append(.journeyDetail(journey.persistentModelID))

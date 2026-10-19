@@ -111,7 +111,7 @@ struct JourneyCoverCard: View {
                 KraftColor.kraft
                 VStack(spacing: 6) {
                     Text(journey.title)
-                        .font(KraftFont.script(30))
+                        .font(KraftFont.stopName(30))
                         .foregroundStyle(KraftColor.ink)
                         .multilineTextAlignment(.center)
                         .lineLimit(3)

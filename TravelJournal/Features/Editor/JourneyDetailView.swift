@@ -78,6 +78,12 @@ struct JourneyDetailContent: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
+                NavigationLink(value: AppRoute.story(journey.persistentModelID)) {
+                    Label("Read story", systemImage: "book")
+                }
+                .accessibilityIdentifier("readStory")
+            }
+            ToolbarItem(placement: .primaryAction) {
                 Button { showAddPhotos = true } label: { Label("Add photos", systemImage: "photo.badge.plus") }
                     .accessibilityIdentifier("addPhotos")
             }

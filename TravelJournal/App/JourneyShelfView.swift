@@ -37,9 +37,10 @@ struct JourneyShelfView: View {
             .task {
                 // Debug launch args: -openSample (journey detail), -openSampleStop (stop editor)
                 let args = ProcessInfo.processInfo.arguments
-                guard args.contains("-openSample") || args.contains("-openSampleStop") else { return }
+                guard args.contains("-openSample") || args.contains("-openSampleStop") || args.contains("-openSampleStory") else { return }
                 let j = journeys.first ?? SampleData.mumbai(in: context)
                 path = [.journeyDetail(j.persistentModelID)]
+                if args.contains("-openSampleStory") { path.append(.story(j.persistentModelID)) }
                 if args.contains("-openSampleStop"), let s = j.orderedStops.first {
                     path.append(.stopEditor(journey: j.persistentModelID, stop: s.persistentModelID))
                 }

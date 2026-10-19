@@ -53,7 +53,7 @@ struct AddPhotosFlowView: View {
                 }
             }
             .sheet(item: $searchTarget) { t in
-                PlaceSearchSheet(model: model, cardID: t.id)
+                CapturePlaceSearchSheet(model: model, cardID: t.id)
             }
         }
         .tint(KraftColor.route)
@@ -301,7 +301,7 @@ private struct UnplacedTray: View {
     }
 }
 
-private struct PlaceSearchSheet: View {
+private struct CapturePlaceSearchSheet: View {
     let model: CaptureViewModel
     let cardID: UUID
     @Environment(\.dismiss) private var dismiss

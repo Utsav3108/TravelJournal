@@ -4,6 +4,7 @@ import SwiftData
 @main
 struct TravelJournalApp: App {
     private let container: ModelContainer
+    private let placeLookup = MapKitPlaceLookup()
 
     init() {
         KraftFonts.register()
@@ -15,6 +16,7 @@ struct TravelJournalApp: App {
         WindowGroup {
             JourneyShelfView()
                 .preferredColorScheme(.light)
+                .environment(\.servicePlaceLookup, placeLookup)
         }
         .modelContainer(container)
     }

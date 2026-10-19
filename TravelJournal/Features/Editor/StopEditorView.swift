@@ -301,7 +301,7 @@ private struct PhotoTile: View {
 
 struct PlaceSearchSheet: View {
     @Bindable var stop: Stop
-    @Environment(\.placeLookup) private var lookup
+    @Environment(\.servicePlaceLookup) private var lookup
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
     @State private var results: [PlaceCandidate] = []

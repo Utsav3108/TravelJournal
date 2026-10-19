@@ -194,7 +194,7 @@ struct PlaceLookupTests {
 
 // MARK: Mock importer
 
-struct MockPhotoImporter: PhotoImporting {
+struct ServicesMockImporter: PhotoImporting {
     var photos: [PhotoMeta]
     func importItems(_ items: [AnyHashable]) async -> [PhotoMeta] { Array(photos.prefix(items.count)) }
 }
@@ -202,7 +202,7 @@ struct MockPhotoImporter: PhotoImporting {
 struct MockImporterTests {
     @Test func returnsOnePerItem() async {
         let p = PhotoMeta(id: "1", date: nil, latitude: nil, longitude: nil, jpegData: Data())
-        let m = MockPhotoImporter(photos: [p, p])
+        let m = ServicesMockImporter(photos: [p, p])
         #expect(await m.importItems(["a" as AnyHashable]).count == 1)
         #expect(await PhotoLibraryImporter().importItems(["not a picker item" as AnyHashable]).isEmpty)
     }

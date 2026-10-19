@@ -24,6 +24,7 @@ struct JourneyDetailContent: View {
     @Bindable var journey: Journey
     @Environment(\.modelContext) private var context
     @Environment(\.editorPhotoStore) private var photoStore
+    @Environment(\.servicePlaceLookup) private var placeLookup
 
     @State private var showAddPhotos = false
     @State private var destination: DetailDestination?
@@ -82,7 +83,7 @@ struct JourneyDetailContent: View {
             }
             ToolbarItem(placement: .secondaryAction) { EditButton() }
         }
-        .sheet(isPresented: $showAddPhotos) { AddPhotosFlowView(journey: journey) }
+        .sheet(isPresented: $showAddPhotos) { AddPhotosFlowView(journey: journey, photoImporter: PhotoLibraryImporter(), placeLookup: placeLookup, photoStore: photoStore) }
         .navigationDestination(item: $destination) { dest in
             switch dest {
             case .stop(let s): StopEditorView(journey: journey, stop: s)

@@ -18,7 +18,7 @@ nonisolated struct CubicBezier: Hashable {
     func flattened(_ n: Int = 64) -> [CGPoint] { (0...n).map { point(CGFloat($0) / CGFloat(n)) } }
 }
 
-nonisolated enum RouteGeometry {
+nonisolated enum PageRouteGeometry {
     /// Dash pattern of the route: `dash` on, `gap` off. Strokes begin at the page edge with `phase` already consumed,
     /// so each page starts with a half dash and two facing pages join into one whole dash.
     static let dash: CGFloat = 9
@@ -121,9 +121,9 @@ nonisolated struct RoutePlan {
         func w(_ a: Double = 18) -> CGFloat { CGFloat(s.range(-a, a)) }
 
         if let entry {
-            let e = RouteGeometry.pagePoint(entry, in: size)
+            let e = PageRouteGeometry.pagePoint(entry, in: size)
             plan.entryPoint = e
-            let n = RouteGeometry.inward(entry.edge)
+            let n = PageRouteGeometry.inward(entry.edge)
             let dist = max(hypot(anchor.x - e.x, anchor.y - e.y), 1)
             let back = CGVector(dx: (e.x - anchor.x) / dist, dy: (e.y - anchor.y) / dist)
             let reach = min(90, 0.4 * dist)
@@ -133,9 +133,9 @@ nonisolated struct RoutePlan {
         }
 
         if let exit {
-            let x = exitPointOverride ?? RouteGeometry.pagePoint(exit, in: size)
+            let x = exitPointOverride ?? PageRouteGeometry.pagePoint(exit, in: size)
             plan.exitPoint = x
-            let n = RouteGeometry.inward(exit.edge)
+            let n = PageRouteGeometry.inward(exit.edge)
             let run = min(slotSize.width, max(hypot(x.x - anchor.x, x.y - anchor.y) * 0.9, 40))
             let k = CGPoint(x: x.x + n.dx * run, y: x.y + n.dy * run)
             plan.knee = k
@@ -153,7 +153,7 @@ nonisolated struct RoutePlan {
             let lastPoly = last.reversed.flattened()
             plan.exitPoly = lastPoly + Array(body.reversed.flattened().dropFirst())
             plan.badgeCenter = last.point(0.55)
-            if let sm = RouteGeometry.sample(lastPoly, atDistance: RouteGeometry.arrowOffsetFromEdge) {
+            if let sm = PageRouteGeometry.sample(lastPoly, atDistance: PageRouteGeometry.arrowOffsetFromEdge) {
                 plan.arrowTip = sm.point
                 plan.arrowDir = CGVector(dx: -sm.dir.dx, dy: -sm.dir.dy)   // polyline runs edge -> inward; travel is the reverse
             }

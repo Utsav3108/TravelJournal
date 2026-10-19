@@ -13,35 +13,35 @@ final class StoryPagesTests: XCTestCase {
 
     func testPagePointsOnEachEdge() {
         let size = CGSize(width: 595, height: 842)
-        XCTAssertEqual(RouteGeometry.pagePoint(RoutePoint(edge: .left, t: 0.5), in: size), CGPoint(x: 0, y: 421))
-        XCTAssertEqual(RouteGeometry.pagePoint(RoutePoint(edge: .right, t: 0.25), in: size), CGPoint(x: 595, y: 210.5))
-        XCTAssertEqual(RouteGeometry.pagePoint(RoutePoint(edge: .top, t: 1), in: size), CGPoint(x: 595, y: 0))
-        XCTAssertEqual(RouteGeometry.pagePoint(RoutePoint(edge: .bottom, t: 0), in: size), CGPoint(x: 0, y: 842))
+        XCTAssertEqual(PageRouteGeometry.pagePoint(RoutePoint(edge: .left, t: 0.5), in: size), CGPoint(x: 0, y: 421))
+        XCTAssertEqual(PageRouteGeometry.pagePoint(RoutePoint(edge: .right, t: 0.25), in: size), CGPoint(x: 595, y: 210.5))
+        XCTAssertEqual(PageRouteGeometry.pagePoint(RoutePoint(edge: .top, t: 1), in: size), CGPoint(x: 595, y: 0))
+        XCTAssertEqual(PageRouteGeometry.pagePoint(RoutePoint(edge: .bottom, t: 0), in: size), CGPoint(x: 0, y: 842))
         // out-of-range t is clamped
-        XCTAssertEqual(RouteGeometry.pagePoint(RoutePoint(edge: .left, t: 1.7), in: size).y, 842)
-        XCTAssertEqual(RouteGeometry.pagePoint(RoutePoint(edge: .left, t: -1), in: size).y, 0)
+        XCTAssertEqual(PageRouteGeometry.pagePoint(RoutePoint(edge: .left, t: 1.7), in: size).y, 842)
+        XCTAssertEqual(PageRouteGeometry.pagePoint(RoutePoint(edge: .left, t: -1), in: size).y, 0)
     }
 
     func testDashTrimmingEndsOnWholeDash() {
-        let firstEnd = RouteGeometry.dash - RouteGeometry.phase
+        let firstEnd = PageRouteGeometry.dash - PageRouteGeometry.phase
         for len in stride(from: CGFloat(5), through: 500, by: 7.3) {
-            let t = RouteGeometry.trimmedLength(len)
+            let t = PageRouteGeometry.trimmedLength(len)
             XCTAssertLessThanOrEqual(t, len)
             XCTAssertGreaterThan(len - t, -0.001)
-            XCTAssertLessThan(len - t, RouteGeometry.period + 0.001, "never trims more than one period")
-            let k = (t - firstEnd) / RouteGeometry.period
+            XCTAssertLessThan(len - t, PageRouteGeometry.period + 0.001, "never trims more than one period")
+            let k = (t - firstEnd) / PageRouteGeometry.period
             XCTAssertEqual(k, k.rounded(), accuracy: 0.0001, "length \(len) -> \(t) must end on a dash")
         }
-        XCTAssertEqual(RouteGeometry.trimmedLength(3), 3)
-        XCTAssertEqual(RouteGeometry.trimmedLength(100), 4.5 + 5 * 16, accuracy: 0.0001)
-        XCTAssertLessThanOrEqual(RouteGeometry.trimFraction(length: 100), 1)
-        XCTAssertEqual(RouteGeometry.trimFraction(length: 0), 1)
+        XCTAssertEqual(PageRouteGeometry.trimmedLength(3), 3)
+        XCTAssertEqual(PageRouteGeometry.trimmedLength(100), 4.5 + 5 * 16, accuracy: 0.0001)
+        XCTAssertLessThanOrEqual(PageRouteGeometry.trimFraction(length: 100), 1)
+        XCTAssertEqual(PageRouteGeometry.trimFraction(length: 0), 1)
     }
 
     func testPolylineSampling() {
         let pts = [CGPoint(x: 0, y: 0), CGPoint(x: 10, y: 0), CGPoint(x: 10, y: 10)]
-        XCTAssertEqual(RouteGeometry.polylineLength(pts), 20, accuracy: 0.001)
-        let s = RouteGeometry.sample(pts, atDistance: 14)!
+        XCTAssertEqual(PageRouteGeometry.polylineLength(pts), 20, accuracy: 0.001)
+        let s = PageRouteGeometry.sample(pts, atDistance: 14)!
         XCTAssertEqual(s.point.x, 10, accuracy: 0.001)
         XCTAssertEqual(s.point.y, 4, accuracy: 0.001)
         XCTAssertEqual(s.dir.dy, 1, accuracy: 0.001)

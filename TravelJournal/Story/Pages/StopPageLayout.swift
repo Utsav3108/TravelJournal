@@ -258,12 +258,12 @@ nonisolated struct StopLayout {
         // Anchor: centre of the numbered pin on the ticket (5,5 from its top-left), rotated with the ticket.
         let tc = CGPoint(x: L.ticket.midX, y: L.ticket.midY)
         let pinRaw = CGPoint(x: L.ticket.minX + 5, y: L.ticket.minY + 5)
-        L.anchor = RouteGeometry.rotate(pinRaw, around: tc, degrees: ticketRotation(stopID: m.stopID))
+        L.anchor = PageRouteGeometry.rotate(pinRaw, around: tc, degrees: ticketRotation(stopID: m.stopID))
 
         // Exit point: normalised position from the model; pushed below the content (phone only) so the slot never overlaps it.
         var exitOverride: CGPoint?
         if let exit = m.exit {
-            var x = RouteGeometry.pagePoint(exit, in: L.pageSize)
+            var x = PageRouteGeometry.pagePoint(exit, in: L.pageSize)
             if !wide, exit.edge == .left || exit.edge == .right {
                 let minY = L.contentBottom + (L.seal != nil ? 44 : 0) + slot.height / 2 + 4
                 if x.y < minY {

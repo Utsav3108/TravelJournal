@@ -6,6 +6,7 @@ struct StoryPageCallbacks {
     var onPhotoTap: ((StoryPhoto) -> Void)?
     var onLegTap: ((StoryLeg) -> Void)?
     var onEdit: ((String) -> Void)?
+    var onPinTap: ((String) -> Void)?
 
     static let none = StoryPageCallbacks()
 }
@@ -16,11 +17,14 @@ struct StoryPageView: View {
     var page: StoryPage
     var metrics: PageMetrics
     var callbacks: StoryPageCallbacks = .none
+    /// Pre-fetched map for print/PDF rendering (ImageRenderer is synchronous); nil = loader (interactive) or drawn fallback.
+    var overviewSnap: MapSnap?
 
-    init(page: StoryPage, metrics: PageMetrics, callbacks: StoryPageCallbacks = .none) {
+    init(page: StoryPage, metrics: PageMetrics, callbacks: StoryPageCallbacks = .none, overviewSnap: MapSnap? = nil) {
         self.page = page
         self.metrics = metrics
         self.callbacks = callbacks
+        self.overviewSnap = overviewSnap
         KraftFonts.register()
     }
 
@@ -28,7 +32,13 @@ struct StoryPageView: View {
         Group {
             switch page {
             case .cover(let m): CoverPage(model: m, metrics: metrics)
-            case .overview(let m): OverviewPagePlaceholder(model: m, metrics: metrics)
+            case .overview(let m):
+                if metrics.mode == .interactive && overviewSnap == nil {
+                    RouteOverviewPageLoader(model: m, metrics: metrics, onPinTap: callbacks.onPinTap, onLegTap: callbacks.onLegTap)
+                } else {
+                    RouteOverviewPage(model: m, metrics: metrics, snap: overviewSnap, isLoading: false,
+                                      onPinTap: callbacks.onPinTap, onLegTap: callbacks.onLegTap)
+                }
             case .stop(let m): StopPage(model: m, metrics: metrics, callbacks: callbacks)
             case .closing(let m): ClosingPage(model: m, metrics: metrics)
             }
@@ -39,28 +49,6 @@ struct StoryPageView: View {
     }
 }
 
-/// TEMPORARY placeholder for the route overview page. Agent B3 (Story/Map) replaces this with `RouteOverviewPage`
-/// at merge time; the dispatcher above is the only call site.
-struct OverviewPagePlaceholder: View {
-    var model: OverviewModel
-    var metrics: PageMetrics
-
-    var body: some View {
-        ZStack {
-            PaperBackground()
-            VStack(spacing: 10) {
-                Text("PLACEHOLDER").stampLabel().foregroundStyle(KraftColor.route)
-                Text("Route overview").font(KraftFont.title(30)).foregroundStyle(KraftColor.ink)
-                Text("\(model.stops.count) stops · replaced by RouteOverviewPage")
-                    .stampLabel().foregroundStyle(KraftColor.inkSoft)
-            }
-            .padding(24)
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(KraftColor.route, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
-        }
-        .frame(width: metrics.size.width, height: metrics.size.height)
-        .clipped()
-    }
-}
 
 // MARK: Shared helpers
 

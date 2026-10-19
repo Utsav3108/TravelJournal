@@ -199,8 +199,8 @@ struct StopRouteLayer: View {
     /// Transparent stamps (rating) knock the route out underneath them (vector clip, no blend modes).
     var holes: [(rect: CGRect, degrees: Double)] = []
 
-    private static let style = StrokeStyle(lineWidth: RouteGeometry.lineWidth, lineCap: .round, lineJoin: .round,
-                                           dash: [RouteGeometry.dash, RouteGeometry.gap], dashPhase: RouteGeometry.phase)
+    private static let style = StrokeStyle(lineWidth: PageRouteGeometry.lineWidth, lineCap: .round, lineJoin: .round,
+                                           dash: [PageRouteGeometry.dash, PageRouteGeometry.gap], dashPhase: PageRouteGeometry.phase)
 
     var body: some View {
         ZStack {
@@ -265,7 +265,7 @@ struct StoryPolyline: Shape {
         p.move(to: f)
         for pt in points.dropFirst() { p.addLine(to: pt) }
         if trimToDash {
-            let frac = RouteGeometry.trimFraction(length: RouteGeometry.polylineLength(points))
+            let frac = PageRouteGeometry.trimFraction(length: PageRouteGeometry.polylineLength(points))
             if frac < 1 { return p.trimmedPath(from: 0, to: frac) }
         }
         return p

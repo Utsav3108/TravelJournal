@@ -8,6 +8,7 @@ final class Journey {
     var date: Date = Date()
     var timeZoneID: String = TimeZone.current.identifier
     var city: String?
+    var country: String?
     var coverPhotoID: UUID?
     var introNote: String?
     var closingNote: String?
@@ -18,10 +19,11 @@ final class Journey {
     @Relationship(deleteRule: .cascade, inverse: \Stop.journey)
     var stops: [Stop] = []
 
-    init(title: String, date: Date = .now, city: String? = nil) {
+    init(title: String, date: Date = .now, city: String? = nil, country: String? = nil) {
         self.title = title
         self.date = date
         self.city = city
+        self.country = country
     }
 
     var orderedStops: [Stop] { stops.sorted { $0.orderIndex < $1.orderIndex } }
@@ -42,6 +44,12 @@ final class Journey {
     var displayCity: String? {
         if let c = city?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty { return c }
         return orderedStops.first?.cityHint
+    }
+
+    /// Stored country, trimmed; nil when empty.
+    var displayCountry: String? {
+        guard let c = country?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty else { return nil }
+        return c
     }
 
     /// Cover: explicit `coverPhotoID`, else first stop's hero, else first hero of any stop.

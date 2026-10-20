@@ -11,6 +11,7 @@ struct CreateJourneyView: View {
     @State private var title = ""
     @State private var date = Date()
     @State private var city = ""
+    @State private var country = ""
 
     private var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -27,6 +28,9 @@ struct CreateJourneyView: View {
                     TextField("City (optional)", text: $city)
                         .accessibilityLabel("City, optional")
                         .accessibilityIdentifier("journeyCityField")
+                    TextField("Country (optional)", text: $country)
+                        .accessibilityLabel("Country, optional")
+                        .accessibilityIdentifier("journeyCountryField")
                 } footer: {
                     Text("A title is required.").foregroundStyle(KraftColor.inkSoft)
                 }
@@ -54,9 +58,11 @@ struct CreateJourneyView: View {
 
     private func save() {
         let trimmedCity = city.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCountry = country.trimmingCharacters(in: .whitespacesAndNewlines)
         let journey = Journey(title: trimmedTitle,
                               date: date,
-                              city: trimmedCity.isEmpty ? nil : trimmedCity)
+                              city: trimmedCity.isEmpty ? nil : trimmedCity,
+                              country: trimmedCountry.isEmpty ? nil : trimmedCountry)
         context.insert(journey)
         try? context.save()
         dismiss()

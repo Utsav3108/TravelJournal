@@ -137,6 +137,8 @@ struct JourneyDetailContent: View {
             DatePicker("Date", selection: $journey.date, displayedComponents: .date)
             TextField("City", text: Binding(
                 get: { journey.city ?? "" }, set: { journey.city = $0.isEmpty ? nil : $0 }))
+            TextField("Country (optional)", text: Binding(
+                get: { journey.country ?? "" }, set: { journey.country = $0.isEmpty ? nil : $0 }))
             TextField("Intro note", text: Binding(
                 get: { journey.introNote ?? "" }, set: { journey.introNote = $0.isEmpty ? nil : $0 }),
                 axis: .vertical)

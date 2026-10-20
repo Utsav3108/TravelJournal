@@ -66,4 +66,29 @@ enum SampleData {
         leg(temple, .autoRickshaw, 6, 20)
         return j
     }
+
+    #if DEBUG
+    /// Inserts `count` lightweight journeys (ids match `LibraryFixtures.stories(count:)`); every 9th has no country.
+    @MainActor
+    static func library(count: Int, in context: ModelContext) {
+        for s in LibraryFixtures.stories(count: count, noCountryEvery: 9) {
+            let j = Journey(title: s.title, date: s.date, city: s.city, country: s.country)
+            j.id = s.id
+            j.timeZoneID = "UTC"
+            context.insert(j)
+        }
+        try? context.save()
+    }
+
+    /// Reads `-seedLibrary N`; seeds only when the store has no journeys.
+    @MainActor
+    static func seedFromLaunchArguments(in context: ModelContext) {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-seedLibrary"), i + 1 < args.count,
+              let n = Int(args[i + 1]), n > 0 else { return }
+        let existing = (try? context.fetchCount(FetchDescriptor<Journey>())) ?? 0
+        guard existing == 0 else { return }
+        library(count: n, in: context)
+    }
+    #endif
 }

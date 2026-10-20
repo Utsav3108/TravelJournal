@@ -90,7 +90,8 @@ struct StoryViewerContent: View {
 
     private func pageView(_ page: StoryPage, index: Int, size: CGSize) -> some View {
         ScrollView(.vertical) {
-            StoryPageView(page: page, metrics: .phone(size), callbacks: callbacks)
+            StoryPageView(page: page, metrics: .phone(size), callbacks: callbacks,
+                          entryY: StopLayout.entryY(at: index, in: pages, metrics: .phone(size)))
                 .frame(width: size.width, height: size.height)
         }
         .scrollBounceBehavior(.basedOnSize)

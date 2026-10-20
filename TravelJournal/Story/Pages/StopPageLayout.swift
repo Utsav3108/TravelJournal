@@ -51,10 +51,12 @@ nonisolated struct StopLayout {
 
     static func ticketRotation(stopID: String) -> Double { PageSeed.rotation(id: "\(stopID)/ticket", limit: 3) }
 
-    static func make(_ m: StopPageModel, metrics: PageMetrics) -> StopLayout {
-        let first = build(m, metrics: metrics, bandScale: 1)
+    /// `entryY`: absolute y (page points) where the previous page's route exits; this page's entry must meet it so the
+    /// dashed line is continuous across the seam. nil = fall back to `entry.t * pageHeight` (first page / unknown neighbour).
+    static func make(_ m: StopPageModel, metrics: PageMetrics, entryY: CGFloat? = nil) -> StopLayout {
+        let first = build(m, metrics: metrics, bandScale: 1, entryY: entryY)
         if first.wide, first.cardClipped || first.contentBottom > first.limit(m, metrics) {
-            let second = build(m, metrics: metrics, bandScale: 0.85)
+            let second = build(m, metrics: metrics, bandScale: 0.85, entryY: entryY)
             return second
         }
         return first
@@ -65,7 +67,7 @@ nonisolated struct StopLayout {
     }
 
     // swiftlint:disable:next function_body_length
-    private static func build(_ m: StopPageModel, metrics: PageMetrics, bandScale s: CGFloat) -> StopLayout {
+    private static func build(_ m: StopPageModel, metrics: PageMetrics, bandScale s: CGFloat, entryY: CGFloat?) -> StopLayout {
         let W = metrics.size.width, H0 = metrics.size.height, mg = metrics.margin
         let wide = W >= 500
         let cw = W - 2 * mg
@@ -273,8 +275,27 @@ nonisolated struct StopLayout {
             }
             exitOverride = x
         }
+        // Entry point: pinned to the previous page's absolute exit y. The page grows if that y lies below its own content
+        // (done after the exit point is fixed, so this page's exit never depends on its neighbour).
+        var entryOverride: CGPoint?
+        if let entry = m.entry, let entryY, entry.edge == .left || entry.edge == .right {
+            let y = max(entryY, 0)
+            entryOverride = CGPoint(x: entry.edge == .left ? 0 : L.pageSize.width, y: y)
+            L.pageSize.height = max(L.pageSize.height, y + mg)
+        }
         L.route = RoutePlan.make(stopID: m.stopID, size: L.pageSize, anchor: L.anchor, entry: m.entry, exit: m.exit,
-                                 exitPointOverride: exitOverride, slotSize: slot)
+                                 entryPointOverride: entryOverride, exitPointOverride: exitOverride, slotSize: slot)
         return L
+    }
+}
+
+extension StopLayout {
+    /// Absolute y at which the route enters page `index`, taken from the previous stop page's final exit point
+    /// (nil when either neighbour is not a stop page with a crossing).
+    static func entryY(at index: Int, in pages: [StoryPage], metrics: PageMetrics) -> CGFloat? {
+        guard index > 0, index < pages.count,
+              case .stop(let cur) = pages[index], cur.entry != nil,
+              case .stop(let prev) = pages[index - 1], prev.exit != nil else { return nil }
+        return make(prev, metrics: metrics).route.exitPoint?.y
     }
 }

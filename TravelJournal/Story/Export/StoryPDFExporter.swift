@@ -92,7 +92,8 @@ final class StoryPDFExporter {
         do {
             for (i, page) in pages.enumerated() {
                 try Task.checkCancellation()
-                let view = StoryPageView(page: page, metrics: .a4, overviewSnap: snap)
+                let view = StoryPageView(page: page, metrics: .a4, overviewSnap: snap,
+                                         entryY: StopLayout.entryY(at: i, in: pages, metrics: .a4))
                     .environment(\.storyImageProvider, provider)
                     .frame(width: box.width, height: box.height)
                 let renderer = ImageRenderer(content: view)

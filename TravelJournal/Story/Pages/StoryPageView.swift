@@ -19,8 +19,11 @@ struct StoryPageView: View {
     var callbacks: StoryPageCallbacks = .none
     /// Pre-fetched map for print/PDF rendering (ImageRenderer is synchronous); nil = loader (interactive) or drawn fallback.
     var overviewSnap: MapSnap?
+    /// Absolute y where the previous page's route exits (see `StopLayout.entryY`); stop pages only.
+    var entryY: CGFloat?
 
-    init(page: StoryPage, metrics: PageMetrics, callbacks: StoryPageCallbacks = .none, overviewSnap: MapSnap? = nil) {
+    init(page: StoryPage, metrics: PageMetrics, callbacks: StoryPageCallbacks = .none, overviewSnap: MapSnap? = nil, entryY: CGFloat? = nil) {
+        self.entryY = entryY
         self.page = page
         self.metrics = metrics
         self.callbacks = callbacks
@@ -39,7 +42,7 @@ struct StoryPageView: View {
                     RouteOverviewPage(model: m, metrics: metrics, snap: overviewSnap, isLoading: false,
                                       onPinTap: callbacks.onPinTap, onLegTap: callbacks.onLegTap)
                 }
-            case .stop(let m): StopPage(model: m, metrics: metrics, callbacks: callbacks)
+            case .stop(let m): StopPage(model: m, metrics: metrics, callbacks: callbacks, entryY: entryY)
             case .closing(let m): ClosingPage(model: m, metrics: metrics)
             }
         }

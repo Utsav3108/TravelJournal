@@ -115,13 +115,13 @@ nonisolated struct RoutePlan {
     init(anchor: CGPoint) { self.anchor = anchor }
 
     static func make(stopID: String, size: CGSize, anchor: CGPoint, entry: RoutePoint?, exit: RoutePoint?,
-                     exitPointOverride: CGPoint? = nil, slotSize: CGSize) -> RoutePlan {
+                     entryPointOverride: CGPoint? = nil, exitPointOverride: CGPoint? = nil, slotSize: CGSize) -> RoutePlan {
         var plan = RoutePlan(anchor: anchor)
         var s = PageSeed.Stream(stopID, "wobble")
         func w(_ a: Double = 18) -> CGFloat { CGFloat(s.range(-a, a)) }
 
         if let entry {
-            let e = PageRouteGeometry.pagePoint(entry, in: size)
+            let e = entryPointOverride ?? PageRouteGeometry.pagePoint(entry, in: size)
             plan.entryPoint = e
             let n = PageRouteGeometry.inward(entry.edge)
             let dist = max(hypot(anchor.x - e.x, anchor.y - e.y), 1)

@@ -5,13 +5,14 @@ struct StopPage: View {
     var model: StopPageModel
     var metrics: PageMetrics
     var callbacks: StoryPageCallbacks = .none
+    var entryY: CGFloat?
 
     @Environment(\.storyImageProvider) private var provider
 
     private var interactive: Bool { metrics.mode == .interactive }
 
     var body: some View {
-        let layout = StopLayout.make(model, metrics: metrics)
+        let layout = StopLayout.make(model, metrics: metrics, entryY: entryY)
         let page = canvas(layout)
             .frame(width: layout.pageSize.width, height: layout.pageSize.height, alignment: .topLeading)
             .background(PaperBackground())

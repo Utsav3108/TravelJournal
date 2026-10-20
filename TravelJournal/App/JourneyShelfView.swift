@@ -11,6 +11,8 @@ struct JourneyShelfView: View {
     @State private var showStylePicker = false
     @AppStorage(ShelfStyle.storageKey) private var styleRaw = ShelfStyle.default.rawValue
 
+    private var darkChrome: Bool { !journeys.isEmpty && style.wrappedValue.usesDarkChrome }
+
     private var style: Binding<ShelfStyle> {
         Binding(get: { ShelfStyle(rawValue: styleRaw) ?? .default }, set: { styleRaw = $0.rawValue })
     }
@@ -22,8 +24,16 @@ struct JourneyShelfView: View {
                 if journeys.isEmpty { emptyState } else { shelf }
             }
             .navigationTitle("My Stories")
-            .toolbarColorScheme(!journeys.isEmpty && style.wrappedValue.usesDarkChrome ? .dark : .light, for: .navigationBar)
+            .navigationBarTitleDisplayMode(darkChrome ? .inline : .automatic)
+            .toolbarColorScheme(darkChrome ? .dark : .light, for: .navigationBar)
+            .toolbarBackground(ShelfStyle.darkChromeColor, for: .navigationBar)
+            .toolbarBackgroundVisibility(darkChrome ? .visible : .automatic, for: .navigationBar)
             .toolbar {
+                if darkChrome {
+                    ToolbarItem(placement: .principal) {
+                        Text("My Stories").font(.headline).foregroundStyle(.white)
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showStylePicker = true } label: { Label("Shelf style", systemImage: "paintbrush") }
                         .accessibilityIdentifier("shelfStyleToolbar")
@@ -46,6 +56,7 @@ struct JourneyShelfView: View {
             .task {
                 // Debug launch args: -openSample (journey detail), -openSampleStop (stop editor)
                 let args = ProcessInfo.processInfo.arguments
+                if args.contains("-seedSample"), journeys.isEmpty { SampleData.mumbai(in: context) }
                 guard args.contains("-openSample") || args.contains("-openSampleStop") || args.contains("-openSampleStory") else { return }
                 let j = journeys.first ?? SampleData.mumbai(in: context)
                 path = [.journeyDetail(j.persistentModelID)]
@@ -55,11 +66,12 @@ struct JourneyShelfView: View {
                 }
             }
             #endif
-            .sheet(isPresented: $showStylePicker) { ShelfStylePicker(selection: style) }
+            .sheet(isPresented: $showStylePicker) { ShelfStylePicker(selection: style).preferredColorScheme(.light) }
             .sheet(isPresented: $showCreate) {
                 CreateJourneyView { journey in
                     path.append(.journeyDetail(journey.persistentModelID))
                 }
+                .preferredColorScheme(.light)
             }
             .confirmationDialog(
                 "Delete this story?",

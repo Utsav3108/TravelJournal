@@ -43,6 +43,10 @@ enum ShelfStyle: String, CaseIterable, Identifiable {
 
     /// True when the style's background is dark, so the nav bar uses light text.
     var usesDarkChrome: Bool { self == .floatingShelves }
+
+    /// Nav bar fill for dark styles; matches the top of the floating-shelves wall.
+    static let darkChromeColor = Color(hex: 0x10141D)
+
 }
 
 /// What every shelf style receives. Styles draw their own full-screen background and books;

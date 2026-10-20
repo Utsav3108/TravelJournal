@@ -37,7 +37,6 @@ struct FloatingShelvesShelfView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     private func lift(_ j: Journey) {
@@ -86,7 +85,7 @@ private struct FSLedgeRow: View {
     let tap: (Journey) -> Void
     let delete: (Journey) -> Void
 
-    private var bookW: CGFloat { min(150, (width - 96) / 2) }
+    private var bookW: CGFloat { max(60, min(150, (width - 96) / 2)) }
     private var bookH: CGFloat { bookW * 1.36 }
     private let brass = Color(red: 0.78, green: 0.62, blue: 0.36)
 
@@ -244,7 +243,7 @@ private struct FSBook: View {
                 ZStack {
                     LinearGradient(colors: [Color(white: 0.78), Color(white: 0.93)], startPoint: .leading, endPoint: .trailing)
                     VStack(spacing: 2) {
-                        ForEach(0..<Int(h / 3), id: \.self) { _ in
+                        ForEach(0..<max(0, Int(h / 3)), id: \.self) { _ in
                             Rectangle().fill(.black.opacity(0.08)).frame(height: 0.5)
                         }
                     }

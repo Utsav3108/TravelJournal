@@ -8,8 +8,12 @@ struct JourneyShelfView: View {
     @State private var path: [AppRoute] = []
     @State private var showCreate = false
     @State private var pendingDelete: Journey?
+    @State private var showStylePicker = false
+    @AppStorage(ShelfStyle.storageKey) private var styleRaw = ShelfStyle.default.rawValue
 
-    private let columns = [GridItem(.adaptive(minimum: 160), spacing: 20)]
+    private var style: Binding<ShelfStyle> {
+        Binding(get: { ShelfStyle(rawValue: styleRaw) ?? .default }, set: { styleRaw = $0.rawValue })
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -18,7 +22,12 @@ struct JourneyShelfView: View {
                 if journeys.isEmpty { emptyState } else { shelf }
             }
             .navigationTitle("My Stories")
+            .toolbarColorScheme(!journeys.isEmpty && style.wrappedValue.usesDarkChrome ? .dark : .light, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showStylePicker = true } label: { Label("Shelf style", systemImage: "paintbrush") }
+                        .accessibilityIdentifier("shelfStyleToolbar")
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showCreate = true } label: { Label("New story", systemImage: "plus") }
                         .accessibilityIdentifier("newStoryToolbar")
@@ -46,6 +55,7 @@ struct JourneyShelfView: View {
                 }
             }
             #endif
+            .sheet(isPresented: $showStylePicker) { ShelfStylePicker(selection: style) }
             .sheet(isPresented: $showCreate) {
                 CreateJourneyView { journey in
                     path.append(.journeyDetail(journey.persistentModelID))
@@ -70,22 +80,14 @@ struct JourneyShelfView: View {
     }
 
     private var shelf: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 24) {
-                ForEach(journeys) { journey in
-                    NavigationLink(value: AppRoute.journeyDetail(journey.persistentModelID)) {
-                        JourneyCoverCard(journey: journey)
-                    }
-                    .buttonStyle(.plain)
-                    .contextMenu {
-                        Button(role: .destructive) { pendingDelete = journey } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
-                }
-            }
-            .padding(20)
-        }
+        ShelfStyleContent(
+            style: style.wrappedValue,
+            context: ShelfStyleContext(
+                journeys: journeys,
+                open: { path.append(.journeyDetail($0.persistentModelID)) },
+                requestDelete: { pendingDelete = $0 }
+            )
+        )
     }
 
     private var emptyState: some View {

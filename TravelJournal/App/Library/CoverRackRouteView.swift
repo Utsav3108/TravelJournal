@@ -8,17 +8,15 @@ struct CoverRackRouteView: View {
     let startStoryID: UUID
 
     @Query(sort: \Journey.date, order: .reverse) private var journeys: [Journey]
-    @State private var stories: [LibraryStory] = []
     @State private var opened: PersistentIdentifier?
 
     var body: some View {
-        LibraryCoverRackView(scope: scope, stories: stories, startStoryID: startStoryID) { story in
+        // Mapped in body (one cheap pass) so the rack's first render already has data and honours the start story.
+        LibraryCoverRackView(scope: scope, stories: journeys.libraryStories, startStoryID: startStoryID) { story in
             opened = journeys.first { $0.id == story.id }?.persistentModelID
         }
         .navigationTitle(scope.title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $opened) { JourneyDetailView(journeyID: $0) }
-        .onAppear { stories = journeys.libraryStories }
-        .onChange(of: journeys) { stories = journeys.libraryStories }
     }
 }

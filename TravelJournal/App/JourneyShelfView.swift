@@ -42,6 +42,15 @@ struct JourneyShelfView: View {
                 let args = ProcessInfo.processInfo.arguments
                 if args.contains("-seedSample"), journeys.isEmpty { SampleData.mumbai(in: context) }
                 SampleData.seedFromLaunchArguments(in: context)
+                if let i = args.firstIndex(of: "-openRack") {
+                    // -openRack N: India cover rack starting on its Nth story (debug aid)
+                    let all = journeys.libraryStories
+                    let scope = StoryScope(kind: .country("India"), title: "India")
+                    let inScope = LibraryIndex.stories(in: scope, from: all)
+                    let n = args.indices.contains(i + 1) ? Int(args[i + 1]) ?? 0 : 0
+                    if inScope.indices.contains(n) { path = [.coverRack(scope: scope, startStoryID: inScope[n].id)] }
+                    return
+                }
                 guard args.contains("-openSample") || args.contains("-openSampleStop") || args.contains("-openSampleStory") else { return }
                 let j = journeys.first ?? SampleData.mumbai(in: context)
                 path = [.journeyDetail(j.persistentModelID)]

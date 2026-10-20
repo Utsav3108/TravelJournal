@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 struct StopEditorView: View {
     let journey: Journey
@@ -55,6 +56,20 @@ private struct StopForm: View {
     @Binding var showPlaceSearch: Bool
     let photoStore: any PhotoStoring
     let canEditPhotos: Bool
+    @State private var picks: [PhotosPickerItem] = []
+    @State private var importNote: String?
+
+    private func addPhotos(_ items: [PhotosPickerItem]) async {
+        var saved = 0, failed = 0
+        for item in items {
+            guard stop.photos.count < PhotoLimits.maxPerStop else { failed += 1; continue }
+            if let data = try? await item.loadTransferable(type: Data.self),
+               (try? photoStore.importPhoto(data: data, into: stop, journeyID: journey.id)) != nil {
+                saved += 1
+            } else { failed += 1 }
+        }
+        importNote = failed == 0 ? nil : "\(saved) added, \(failed) could not be added (limit is \(PhotoLimits.maxPerStop) per stop)."
+    }
 
     var body: some View {
         Form {
@@ -148,9 +163,17 @@ private struct StopForm: View {
     private var photosSection: some View {
         Section {
             PhotoGridEditor(stop: stop, store: photoStore)
-            Button { } label: { Label("Add photos to this stop", systemImage: "photo.badge.plus") }
-                .disabled(true)
-            // TODO(B3): importing photos into an existing stop is owned by the Capture flow.
+            let room = max(0, PhotoLimits.maxPerStop - stop.photos.count)
+            PhotosPicker(selection: $picks, maxSelectionCount: max(room, 1), matching: .images) {
+                Label("Add photos to this stop", systemImage: "photo.badge.plus")
+            }
+            .disabled(!canEditPhotos || room == 0)
+            .onChange(of: picks) { _, items in
+                guard !items.isEmpty else { return }
+                picks = []
+                Task { await addPhotos(items) }
+            }
+            if let importNote { Text(importNote).font(.footnote).foregroundStyle(KraftColor.inkSoft) }
         } header: { Text("Photos (\(stop.photos.count) of \(PhotoLimits.maxPerStop))") } footer: {
             if !canEditPhotos { Text("Save the stop first to manage photos.") }
         }

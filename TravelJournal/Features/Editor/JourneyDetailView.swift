@@ -209,10 +209,14 @@ private struct LegRow: View {
                 } else {
                     Image(systemName: "arrow.down").font(.footnote).foregroundStyle(KraftColor.inkSoft)
                 }
-                Text(summary ?? "Add travel details")
+                Text(summary ?? "Add transport, time and distance")
                     .font(KraftFont.note(17, scaled: true))
-                    .foregroundStyle(summary == nil ? KraftColor.inkSoft : KraftColor.ink)
+                    .foregroundStyle(summary == nil ? KraftColor.route : KraftColor.ink)
                 Spacer()
+                Text(summary == nil ? "Add" : "Edit")
+                    .font(.footnote.weight(.medium)).foregroundStyle(KraftColor.route)
+                Image(systemName: "chevron.right").font(.footnote).foregroundStyle(KraftColor.inkSoft)
+                    .padding(.trailing, 4)
             }
             .frame(minHeight: 44)
             .contentShape(Rectangle())

@@ -25,16 +25,32 @@ struct StoryViewerContent: View {
     @State private var legCard: StoryLeg?
     @State private var photo: StoryPhoto?
     @State private var editTarget: PersistentIdentifier?
+    @State private var export: StoryPDFExportModel
+    @State private var tempReveal = false
+    @State private var revealTask: Task<Void, Never>?
+
+    init(journey: Journey) {
+        self.journey = journey
+        _export = State(initialValue: StoryPDFExportModel(journey: journey))
+    }
+
+    /// Constant status-bar height, so pages never move when the navigation bar hides or shows.
+    private var topInset: CGFloat {
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        return scene?.keyWindow?.safeAreaInsets.top ?? 0
+    }
 
     var body: some View {
+        let barVisible = StoryViewerLogic.barVisible(pageIndex: currentIndex, tempReveal: tempReveal)
         GeometryReader { geo in
+            let size = CGSize(width: geo.size.width, height: max(geo.size.height - topInset, 1))
             ZStack(alignment: .bottom) {
                 PaperBackground().ignoresSafeArea()
                 ScrollView(.horizontal) {
                     LazyHStack(spacing: 0) {
                         ForEach(Array(pages.enumerated()), id: \.element.id) { i, page in
-                            pageView(page, index: i, size: geo.size)
-                                .frame(width: geo.size.width, height: geo.size.height)
+                            pageView(page, index: i, size: size)
+                                .frame(width: size.width, height: size.height)
                                 .id(page.id)
                         }
                     }
@@ -43,16 +59,27 @@ struct StoryViewerContent: View {
                 .scrollTargetBehavior(.paging)
                 .scrollPosition(id: $currentID)
                 .scrollIndicators(.hidden)
+                .padding(.top, topInset)
 
                 indicator
             }
+            .frame(width: geo.size.width, height: geo.size.height)
         }
+        .ignoresSafeArea(.container, edges: .top)
+        .toolbar(barVisible ? .visible : .hidden, for: .navigationBar)
+        .animation(.easeInOut(duration: 0.25), value: barVisible)
+        .onChange(of: currentIndex) { old, new in
+            let keep = StoryViewerLogic.revealAfterPageChange(from: old, to: new, tempReveal: tempReveal)
+            if !keep { cancelReveal() }
+        }
+        .onDisappear { cancelReveal() }
+        .pdfExportPresentations(export)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("storyViewer")
         .navigationTitle(journey.title.isEmpty ? "Story" : journey.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) { StoryPDFExportButton(journey: journey) }
+            ToolbarItem(placement: .primaryAction) { StoryPDFExportButton(model: export) }
             ToolbarItem(placement: .secondaryAction) {
                 Button { dismiss() } label: { Label("Edit story", systemImage: "square.and.pencil") }
                     .accessibilityIdentifier("editStory")
@@ -96,6 +123,7 @@ struct StoryViewerContent: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .scrollIndicators(.hidden)
+        .onTapGesture { if index > 0 { revealBarTemporarily() } }   // child taps (photos, pins, buttons) win
         .accessibilityElement(children: .contain)
         .accessibilityLabel(StoryViewerLogic.pageLabel(page, index: index, total: pages.count))
     }
@@ -109,7 +137,25 @@ struct StoryViewerContent: View {
             },
             onPinTap: { pid in
                 withAnimation(.easeInOut(duration: 0.4)) { currentID = pid }
-            })
+            },
+            onSavePDF: { export.start() })
+    }
+
+    private func revealBarTemporarily() {
+        revealTask?.cancel()
+        withAnimation(.easeInOut(duration: 0.25)) { tempReveal = true }
+        revealTask = Task {
+            try? await Task.sleep(for: .seconds(StoryViewerLogic.barRevealSeconds))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.25)) { tempReveal = false }
+            revealTask = nil
+        }
+    }
+
+    private func cancelReveal() {
+        revealTask?.cancel()
+        revealTask = nil
+        if tempReveal { withAnimation(.easeInOut(duration: 0.25)) { tempReveal = false } }
     }
 
     private func rebuild() {

@@ -7,6 +7,7 @@ struct StoryPageCallbacks {
     var onLegTap: ((StoryLeg) -> Void)?
     var onEdit: ((String) -> Void)?
     var onPinTap: ((String) -> Void)?
+    var onSavePDF: (() -> Void)?
 
     static let none = StoryPageCallbacks()
 }
@@ -43,7 +44,7 @@ struct StoryPageView: View {
                                       onPinTap: callbacks.onPinTap, onLegTap: callbacks.onLegTap)
                 }
             case .stop(let m): StopPage(model: m, metrics: metrics, callbacks: callbacks, entryY: entryY)
-            case .closing(let m): ClosingPage(model: m, metrics: metrics)
+            case .closing(let m): ClosingPage(model: m, metrics: metrics, onSavePDF: metrics.mode == .interactive ? callbacks.onSavePDF : nil)
             }
         }
         .environment(\.colorScheme, .light)

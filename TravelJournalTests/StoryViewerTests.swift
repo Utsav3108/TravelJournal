@@ -69,4 +69,14 @@ final class StoryViewerTests: XCTestCase {
         XCTAssertEqual(StoryViewerLogic.minutesText(45), "45 min")
         XCTAssertEqual(StoryViewerLogic.minutesText(120), "2 h")
     }
+
+    func testBarVisibility() {
+        XCTAssertTrue(StoryViewerLogic.barVisible(pageIndex: 0, tempReveal: false))
+        XCTAssertFalse(StoryViewerLogic.barVisible(pageIndex: 1, tempReveal: false))
+        XCTAssertTrue(StoryViewerLogic.barVisible(pageIndex: 3, tempReveal: true))
+        XCTAssertTrue(StoryViewerLogic.barVisible(pageIndex: 0, tempReveal: true))
+        XCTAssertTrue(StoryViewerLogic.revealAfterPageChange(from: 2, to: 2, tempReveal: true))
+        XCTAssertFalse(StoryViewerLogic.revealAfterPageChange(from: 2, to: 3, tempReveal: true))
+        XCTAssertEqual(StoryViewerLogic.barRevealSeconds, 3)
+    }
 }

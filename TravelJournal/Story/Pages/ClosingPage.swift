@@ -57,6 +57,8 @@ nonisolated struct ClosingLayout {
 struct ClosingPage: View {
     var model: ClosingModel
     var metrics: PageMetrics
+    /// Interactive only (nil when printing): triggers the shared PDF export flow.
+    var onSavePDF: (() -> Void)?
 
     var body: some View {
         let L = ClosingLayout.make(model, metrics: metrics)
@@ -97,6 +99,42 @@ struct ClosingPage: View {
         }
         .frame(width: metrics.size.width, height: metrics.size.height, alignment: .topLeading)
         .background(PaperBackground())
+        .overlay(alignment: .bottom) {
+            if let onSavePDF {
+                SavePDFStamp(action: onSavePDF, seed: "closing/\(model.seed)/pdf")
+                    .padding(.bottom, 48)
+            }
+        }
         .clipped()
+    }
+}
+
+/// Stamp-style "Save as PDF" button for the closing page (interactive only, never printed).
+struct SavePDFStamp: View {
+    var action: () -> Void
+    var seed: String = "savepdf"
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.down.doc")
+                Text("SAVE AS PDF").stampLabel(13)
+            }
+            .foregroundStyle(KraftColor.stampTeal)
+            .padding(.horizontal, 16)
+            .frame(height: 48)
+            .background(
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6).stroke(KraftColor.stampTeal, lineWidth: 2)
+                    RoundedRectangle(cornerRadius: 6).stroke(KraftColor.stampTeal.opacity(0.6), lineWidth: 0.8).padding(3.5)
+                }
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .seededRotation(seed, limit: 2)
+        .accessibilityLabel("Save as PDF")
+        .accessibilityHint("Creates a printable PDF of this journey")
+        .accessibilityIdentifier("savePDF")
     }
 }

@@ -1,64 +1,88 @@
 import SwiftUI
 import UIKit
 
-/// Toolbar-friendly "Export PDF" button: progress sheet (page i of n, cancel), then the share sheet
-/// (includes Save to Files). Disabled when the journey has no stops.
-struct StoryPDFExportButton: View {
+/// Single export + share flow. The nav-bar button and the closing page's "Save as PDF" stamp both call `start()`.
+@Observable
+final class StoryPDFExportModel {
     let journey: Journey
+    var progress: (done: Int, total: Int)?
+    var shareItem: ShareItem?
+    var errorMessage: String?
+    private var task: Task<Void, Never>?
 
-    @State private var task: Task<Void, Never>?
-    @State private var progress: (done: Int, total: Int)?
-    @State private var shareItem: ShareItem?
-    @State private var errorMessage: String?
+    init(journey: Journey) { self.journey = journey }
 
-    private var hasStops: Bool { !journey.stops.isEmpty }
-    private var isExporting: Bool { progress != nil }
+    var hasStops: Bool { !journey.stops.isEmpty }
+    var isExporting: Bool { progress != nil }
 
-    var body: some View {
-        Button {
-            start()
-        } label: {
-            Label("Export PDF", systemImage: "square.and.arrow.up")
-        }
-        .disabled(!hasStops || isExporting)
-        .accessibilityIdentifier("exportPDF")
-        .accessibilityHint(hasStops ? "Creates a printable PDF of this journey" : "Add at least one stop to export a PDF")
-        .sheet(isPresented: Binding(get: { isExporting }, set: { _ in })) {
-            ExportProgressView(done: progress?.done ?? 0, total: progress?.total ?? 0) { task?.cancel() }
-                .presentationDetents([.height(220)])
-                .interactiveDismissDisabled()
-        }
-        .sheet(item: $shareItem) { item in
-            ActivityView(url: item.url).presentationDetents([.medium, .large])
-        }
-        .alert("Couldn't export PDF", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(errorMessage ?? "")
-        }
-    }
+    func cancel() { task?.cancel() }
 
-    private func start() {
+    func start() {
         guard hasStops, task == nil else { return }
         progress = (0, 1)
         let exporter = StoryPDFExporter()
-        exporter.progress = { done, total in progress = (done, total) }
-        task = Task {
-            defer { task = nil; progress = nil }
+        exporter.progress = { [weak self] done, total in self?.progress = (done, total) }
+        let journey = journey
+        task = Task { [weak self] in
+            defer { self?.task = nil; self?.progress = nil }
             do {
                 let url = try await exporter.export(journey)
-                progress = nil
+                self?.progress = nil
                 try? await Task.sleep(for: .milliseconds(350))   // let the progress sheet dismiss before presenting
-                shareItem = ShareItem(url: url)
+                self?.shareItem = ShareItem(url: url)
             } catch is CancellationError {
             } catch {
-                errorMessage = error.localizedDescription
+                self?.errorMessage = error.localizedDescription
             }
         }
     }
 }
 
-private struct ShareItem: Identifiable {
+/// Toolbar "Export PDF" button; presentations live in `.pdfExportPresentations(_:)`, attached once by the owner.
+struct StoryPDFExportButton: View {
+    let model: StoryPDFExportModel
+
+    var body: some View {
+        Button {
+            model.start()
+        } label: {
+            Label("Export PDF", systemImage: "square.and.arrow.up")
+        }
+        .disabled(!model.hasStops || model.isExporting)
+        .accessibilityIdentifier("exportPDF")
+        .accessibilityHint(model.hasStops ? "Creates a printable PDF of this journey" : "Add at least one stop to export a PDF")
+    }
+}
+
+extension View {
+    /// Progress sheet, share sheet and error alert for a `StoryPDFExportModel`.
+    func pdfExportPresentations(_ model: StoryPDFExportModel) -> some View {
+        modifier(PDFExportPresentations(model: model))
+    }
+}
+
+private struct PDFExportPresentations: ViewModifier {
+    @Bindable var model: StoryPDFExportModel
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(isPresented: Binding(get: { model.isExporting }, set: { _ in })) {
+                ExportProgressView(done: model.progress?.done ?? 0, total: model.progress?.total ?? 0) { model.cancel() }
+                    .presentationDetents([.height(220)])
+                    .interactiveDismissDisabled()
+            }
+            .sheet(item: $model.shareItem) { item in
+                ActivityView(url: item.url).presentationDetents([.medium, .large])
+            }
+            .alert("Couldn't export PDF", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(model.errorMessage ?? "")
+            }
+    }
+}
+
+struct ShareItem: Identifiable {
     let id = UUID()
     let url: URL
 }

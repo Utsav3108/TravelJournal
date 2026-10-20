@@ -16,6 +16,17 @@ nonisolated enum StoryViewerLogic {
         return pages[min(max(oldIndex, 0), pages.count - 1)].id
     }
 
+    /// How long a tap-revealed bar stays on pages 2+.
+    static let barRevealSeconds: Double = 3
+
+    /// Navigation bar shows on the cover, or temporarily after a tap on later pages.
+    static func barVisible(pageIndex: Int, tempReveal: Bool) -> Bool { pageIndex <= 0 || tempReveal }
+
+    /// A temporary reveal only survives while staying on the same page; any page change clears it.
+    static func revealAfterPageChange(from old: Int, to new: Int, tempReveal: Bool) -> Bool {
+        old == new ? tempReveal : false
+    }
+
     /// "3 / 6"
     static func indicatorText(index: Int, total: Int) -> String { "\(index + 1) / \(total)" }
 

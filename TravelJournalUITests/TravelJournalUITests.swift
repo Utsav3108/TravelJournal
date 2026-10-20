@@ -42,6 +42,9 @@ final class TravelJournalUITests: XCTestCase {
         let changed = expectation(for: NSPredicate(format: "label != %@", before), evaluatedWith: indicator)
         wait(for: [changed], timeout: 8)
 
+        // Bar is hidden off the cover; swiping back to page 1 shows it again.
+        app.swipeRight()
+        app.swipeRight()
         XCTAssertTrue(app.buttons["exportPDF"].waitForExistence(timeout: 5), "export button missing")
     }
 

@@ -108,19 +108,6 @@ enum EditorLogic {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    static func kraft(_ m: TransportMode) -> KraftTransport {
-        switch m {
-        case .walk: .walk
-        case .autoRickshaw: .autoRickshaw
-        case .taxi: .taxi
-        case .bus: .bus
-        case .localTrain: .train
-        case .metro: .metro
-        case .bike: .bike
-        case .ferry: .ferry
-        }
-    }
-
     static func kraft(_ c: StopCategory) -> KraftCategory {
         KraftCategory(rawValue: c.rawValue) ?? .other
     }

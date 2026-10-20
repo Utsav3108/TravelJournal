@@ -142,8 +142,7 @@ struct LegCardView: View {
         let t = StoryViewerLogic.legCardText(leg)
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
-                if let k = kraftMode { TransportIcon(mode: k, size: 36) }
-                else { Image(systemName: "arrow.forward").font(.title2).foregroundStyle(KraftColor.inkSoft) }
+                if let k = TransportMode.icon(forRaw: leg.modeRaw) { TransportIcon(mode: k, size: 36) }
                 Text(t.title).font(KraftFont.note(28)).foregroundStyle(KraftColor.ink)
             }
             if !t.details.isEmpty {
@@ -163,12 +162,6 @@ struct LegCardView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(t.accessibility)
         .accessibilityIdentifier("legCard")
-    }
-
-    private var kraftMode: KraftTransport? {
-        guard let raw = leg.modeRaw else { return nil }
-        if let k = KraftTransport(rawValue: raw) { return k }
-        return TransportMode(rawValue: raw).map(EditorLogic.kraft)
     }
 }
 

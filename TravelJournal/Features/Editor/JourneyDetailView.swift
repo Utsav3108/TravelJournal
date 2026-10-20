@@ -205,7 +205,7 @@ private struct LegRow: View {
                 Rectangle().fill(KraftColor.route.opacity(0.5)).frame(width: 2, height: 28)
                     .padding(.leading, 13)
                 if leg.modeWasChosen {
-                    TransportIcon(mode: EditorLogic.kraft(leg.mode), size: 20)
+                    TransportIcon(mode: leg.mode.icon, size: 20)
                 } else {
                     Image(systemName: "arrow.down").font(.footnote).foregroundStyle(KraftColor.inkSoft)
                 }

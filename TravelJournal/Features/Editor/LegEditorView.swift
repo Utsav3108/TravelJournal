@@ -14,7 +14,7 @@ struct LegEditorView: View {
                         let selected = leg.modeWasChosen && leg.mode == m
                         Button { leg.mode = m } label: {
                             VStack(spacing: 4) {
-                                TransportIcon(mode: EditorLogic.kraft(m), size: 28)
+                                TransportIcon(mode: m.icon, size: 28)
                                 Text(EditorLogic.modeName(m)).font(.caption2).lineLimit(1).minimumScaleFactor(0.6)
                                     .foregroundStyle(KraftColor.ink)
                             }

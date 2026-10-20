@@ -47,7 +47,7 @@ struct StoryViewerContent: View {
             ZStack(alignment: .bottom) {
                 PaperBackground().ignoresSafeArea()
                 ScrollView(.horizontal) {
-                    LazyHStack(spacing: 0) {
+                    HStack(spacing: 0) {
                         ForEach(Array(pages.enumerated()), id: \.element.id) { i, page in
                             pageView(page, index: i, size: size)
                                 .frame(width: size.width, height: size.height)
@@ -97,7 +97,7 @@ struct StoryViewerContent: View {
             StopEditorRouteView(journeyID: journey.persistentModelID, stopID: id)
         }
         #if DEBUG
-        .task { debugArgs() }
+        .task { await debugArgs() }
         #endif
     }
 
@@ -167,10 +167,11 @@ struct StoryViewerContent: View {
     }
 
     #if DEBUG
-    private func debugArgs() {
+    private func debugArgs() async {
         let args = ProcessInfo.processInfo.arguments
         if let i = args.firstIndex(of: "-openSampleStoryPage"), i + 1 < args.count, let n = Int(args[i + 1]),
            pages.indices.contains(n) {
+            try? await Task.sleep(for: .milliseconds(600))   // let the pager lay out before jumping
             currentID = pages[n].id
         }
         if args.contains("-openSampleLegCard") {

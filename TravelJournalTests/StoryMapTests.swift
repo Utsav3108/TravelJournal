@@ -62,13 +62,13 @@ struct StoryMapTests {
 
     @Test func statsFormatting() {
         let s = StatsModel(stops: 4, km: 8.44, totalMinutes: 320, travelMinutes: 65, modes: ["walk", "taxi"], photos: 0, moneyText: nil)
-        #expect(OverviewStatsFormat.items(s) == ["4 stops", "8.4 km", "5 h 20 min", "walk, taxi"])
+        #expect(OverviewStatsFormat.items(s) == ["4 stops", "8.4 km", "5½ HOURS", "walk, taxi"])
         #expect(OverviewStatsFormat.travelText(s) == "travel 1 h 5 min")
         #expect(OverviewStatsFormat.kmText(8.46) == "8.5 km")
         #expect(OverviewStatsFormat.duration(45) == "45 min")
         #expect(OverviewStatsFormat.duration(120) == "2 h")
         let one = StatsModel(stops: 1, km: nil, totalMinutes: 30, travelMinutes: 0, modes: ["a", "b", "c", "d"], photos: 0, moneyText: nil)
-        #expect(OverviewStatsFormat.items(one) == ["1 stop", "30 min", "a, b, c +1"])
+        #expect(OverviewStatsFormat.items(one) == ["1 stop", "½ HOUR", "a, b, c +1"])
         #expect(OverviewStatsFormat.travelText(one) == nil)
     }
 

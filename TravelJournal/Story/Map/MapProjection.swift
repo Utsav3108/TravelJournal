@@ -97,7 +97,7 @@ nonisolated enum OverviewStatsFormat {
     static func items(_ s: StatsModel) -> [String] {
         var out = ["\(s.stops) \(s.stops == 1 ? "stop" : "stops")"]
         if let km = s.km, km > 0 { out.append(kmText(km)) }
-        out.append(duration(s.totalMinutes))
+        out.append(StatsFormat.hoursText(minutes: s.totalMinutes))
         if !s.modes.isEmpty {
             let shown = s.modes.prefix(3).joined(separator: ", ")
             out.append(s.modes.count > 3 ? "\(shown) +\(s.modes.count - 3)" : shown)

@@ -53,15 +53,27 @@ enum EditorLogic {
         return min(v, 24 * 60)
     }
 
-    /// Decimal kilometres (accepts comma decimal); empty/invalid/negative -> nil.
+    /// Normalises typed numbers: "12,5" is a decimal comma, "1,240" / "1,24,000" / "1,240.50" use commas as thousands separators.
+    static func normalizeNumber(_ text: String) -> String {
+        let t = text.trimmingCharacters(in: .whitespaces)
+        guard t.contains(",") else { return t }
+        if t.contains(".") { return t.replacingOccurrences(of: ",", with: "") }      // "1,240.50"
+        let parts = t.split(separator: ",", omittingEmptySubsequences: false)
+        if parts.count == 2, let frac = parts.last, frac.count != 3 {                  // "12,5" "0,75"
+            return t.replacingOccurrences(of: ",", with: ".")
+        }
+        return t.replacingOccurrences(of: ",", with: "")                               // "1,240" "1,24,000"
+    }
+
+    /// Decimal kilometres (accepts comma decimal or grouped digits); empty/invalid/negative -> nil.
     static func parseKm(_ text: String) -> Double? {
-        let t = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+        let t = normalizeNumber(text)
         guard !t.isEmpty, let v = Double(t), v >= 0, v.isFinite else { return nil }
         return v
     }
 
     static func parseAmount(_ text: String) -> Decimal? {
-        let t = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+        let t = normalizeNumber(text)
         guard !t.isEmpty, let v = Decimal(string: t), v >= 0 else { return nil }
         return v
     }

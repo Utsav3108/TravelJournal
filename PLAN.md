@@ -1,7 +1,7 @@
 # Story App (TravelJournal) — v1 Build Plan
 
 ## Context
-`TravelJournal/task.pdf` is the "Story App — v1 Product & Design Spec": an iOS/SwiftUI app that turns a one-day trip into a scrapbook story (stops = chapters, legs = route thread), viewable interactively in-app and exported as an A4 PDF. Theme: Vintage Kraft. No backend; Apple frameworks only (SwiftData, PhotosPicker, MapKit, ImageRenderer). The repo is currently the empty Xcode SwiftUI/SwiftData template (`Item.swift`, `ContentView.swift`, `TravelJournalApp.swift`).
+`docs/task.pdf` is the "Story App — v1 Product & Design Spec": an iOS/SwiftUI app that turns a one-day trip into a scrapbook story (stops = chapters, legs = route thread), viewable interactively in-app and exported as an A4 PDF. Theme: Vintage Kraft. No backend; Apple frameworks only (SwiftData, PhotosPicker, MapKit, ImageRenderer). The repo is currently the empty Xcode SwiftUI/SwiftData template (`Item.swift`, `ContentView.swift`, `TravelJournalApp.swift`).
 
 Goal of this plan: split the work into **phases** and decide **how many subagents** research the design system and the logic before and during the build.
 

@@ -14,6 +14,9 @@ final class MapSnapshotService {
 
     private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
     private var memory: [String: MapSnap] = [:]
+    /// Recent snapshot failures (offline etc.): skip the network attempt for a short while so pages and exports don't each wait out the timeout.
+    private var failedAt: [String: Date] = [:]
+    private let retryAfter: TimeInterval = 60
     private let cacheDir: URL
     var timeout: Duration = .seconds(10)
 
@@ -52,6 +55,9 @@ final class MapSnapshotService {
             memory[key] = hit
             return hit
         }
+        if let t = failedAt[key], Date().timeIntervalSince(t) < retryAfter {
+            return Self.fallback(points: points, stopIndices: idx, size: size)
+        }
         do {
             let snap = try await withThrowingTaskGroup(of: MapSnap.self) { group in
                 group.addTask { @MainActor in try await self.takeSnapshot(points: points, stopIndices: idx, size: size, scale: scale) }
@@ -64,9 +70,11 @@ final class MapSnapshotService {
                 return first
             }
             memory[key] = snap
+            failedAt[key] = nil
             saveToDisk(snap, key: key)
             return snap
         } catch {
+            failedAt[key] = Date()
             return Self.fallback(points: points, stopIndices: idx, size: size)
         }
     }

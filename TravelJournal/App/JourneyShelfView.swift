@@ -58,7 +58,7 @@ struct JourneyShelfView: View {
                 presenting: pendingDelete
             ) { journey in
                 Button("Delete \"\(journey.title)\"", role: .destructive) {
-                    context.delete(journey)
+                    JourneyEditor(context: context, photos: FilePhotoStore()).deleteJourney(journey)
                     pendingDelete = nil
                 }
                 Button("Cancel", role: .cancel) { pendingDelete = nil }

@@ -166,7 +166,7 @@ nonisolated enum OverviewLegsFormat {
         model.legs.enumerated().compactMap { i, leg in
             guard model.stops.indices.contains(i + 1) else { return nil }
             var parts: [String] = []
-            if let m = leg.modeRaw { parts.append(m) }
+            if let m = StoryViewerLogic.modeName(leg.modeRaw) { parts.append(m.lowercased()) }
             if let min = leg.minutes { parts.append(OverviewStatsFormat.duration(min)) }
             if let km = leg.km, km > 0 { parts.append(OverviewStatsFormat.kmText(km)) }
             guard !parts.isEmpty else { return nil }

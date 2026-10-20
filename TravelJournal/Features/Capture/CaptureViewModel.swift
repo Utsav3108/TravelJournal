@@ -93,16 +93,26 @@ final class CaptureViewModel {
 
     func startLookups() {
         guard lookupTask == nil else { return }
+        lookupGeneration += 1
+        let generation = lookupGeneration
         lookupTask = Task { [weak self] in
             await self?.runLookups()
-            self?.lookupTask = nil
+            // A cancelled loop must not clear a newer loop's task handle.
+            if self?.lookupGeneration == generation { self?.lookupTask = nil }
         }
     }
 
     /// Test hook: wait for the serial lookup loop to drain.
     func waitForLookups() async { await lookupTask?.value }
 
-    func cancelLookups() { lookupTask?.cancel(); lookupTask = nil }
+    private var lookupGeneration = 0
+
+    func cancelLookups() {
+        lookupTask?.cancel(); lookupTask = nil
+        lookupGeneration += 1
+        // Anything mid-lookup goes back to the queue so a later run (or the user) can resolve it.
+        for j in cards.indices where cards[j].lookup == .loading { cards[j].lookup = .idle }
+    }
 
     private func runLookups() async {
         while !Task.isCancelled,
@@ -122,7 +132,10 @@ final class CaptureViewModel {
             cards[i].lookup = .loading
             lookupCalls += 1
             let found = await lookup.place(near: lat, longitude: lon)
-            if Task.isCancelled { return }
+            if Task.isCancelled {
+                if let j = cards.firstIndex(where: { $0.id == id }), cards[j].lookup == .loading { cards[j].lookup = .idle }
+                return
+            }
             cache[key] = .some(found)
             apply(found, toCardID: id)
         }
@@ -175,9 +188,11 @@ final class CaptureViewModel {
                                       inferredIDs: prev.cluster.inferredIDs.union(cur.cluster.inferredIDs))
         let prevNamed = !prev.name.trimmingCharacters(in: .whitespaces).isEmpty
         if !prevNamed { merged.name = cur.name; merged.place = cur.place; merged.nameEdited = cur.nameEdited
-            merged.lookup = cur.lookup }
+            // An in-flight lookup is keyed to the removed card's id, so its result would be dropped: requeue instead.
+            merged.lookup = cur.lookup == .loading ? .idle : cur.lookup }
         cards[i - 1] = merged
         cards.remove(at: i)
+        startLookups()
     }
 
     /// Move one photo out of its card into a new card right after it. Needs at least two photos.

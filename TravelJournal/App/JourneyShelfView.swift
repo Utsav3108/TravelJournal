@@ -114,24 +114,37 @@ struct JourneyShelfView: View {
     }
 }
 
-/// Book-cover card. Cover photo hook arrives with the photo pipeline; kraft placeholder for now.
+/// Book-cover card: the journey's cover photo when a file exists, otherwise a kraft placeholder.
 struct JourneyCoverCard: View {
     let journey: Journey
+
+    private var coverImage: UIImage? {
+        guard let path = journey.coverThumbPath ?? journey.coverPhotoPath, !path.hasPrefix("sample:") else { return nil }
+        return UIImage(contentsOfFile: FilePhotoStore().url(for: path).path)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
                 KraftColor.kraft
+                if let cover = coverImage {
+                    GeometryReader { geo in
+                        Image(uiImage: cover).resizable().scaledToFill()
+                            .frame(width: geo.size.width, height: geo.size.height).clipped()
+                    }
+                    .overlay(LinearGradient(colors: [.clear, KraftColor.ink.opacity(0.55)], startPoint: .center, endPoint: .bottom))
+                }
                 VStack(spacing: 6) {
                     Text(journey.title)
                         .font(KraftFont.stopName(30))
-                        .foregroundStyle(KraftColor.ink)
+                        .foregroundStyle(coverImage == nil ? KraftColor.ink : KraftColor.paper)
                         .multilineTextAlignment(.center)
                         .lineLimit(3)
                         .minimumScaleFactor(0.6)
                     Rectangle().fill(KraftColor.kraftDark.opacity(0.5)).frame(width: 40, height: 1)
                 }
                 .padding(14)
+                .frame(maxHeight: .infinity, alignment: coverImage == nil ? .center : .bottom)
             }
             .aspectRatio(3.0 / 4.0, contentMode: .fit)
             .clipShape(UnevenRoundedRectangle(topLeadingRadius: 4, bottomLeadingRadius: 4,

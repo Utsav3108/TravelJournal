@@ -156,6 +156,7 @@ struct StopPage: View {
                 Circle().fill(KraftColor.polaroidWhite)
                 Circle().stroke(KraftColor.route, lineWidth: 1.5)
                 if let transport { TransportIcon(mode: transport, size: 22) }
+                else { Image(systemName: "arrow.right").font(.system(size: 15, weight: .semibold)).foregroundStyle(KraftColor.route) }
             }
             .frame(width: 36, height: 36)
             .placed(CGRect(x: center.x - 18, y: center.y - 18, width: 36, height: 36))

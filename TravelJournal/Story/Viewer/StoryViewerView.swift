@@ -61,7 +61,7 @@ struct StoryViewerContent: View {
         .onAppear { rebuild() }
         .sheet(item: $legCard) { leg in
             LegCardView(leg: leg)
-                .presentationDetents([.medium])
+                .presentationDetents([.height(340), .medium])
         }
         .fullScreenCover(item: $photo) { p in
             FullScreenPhotoView(photo: p, provider: imageProvider) { photo = nil }

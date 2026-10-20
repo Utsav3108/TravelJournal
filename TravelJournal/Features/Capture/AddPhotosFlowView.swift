@@ -12,6 +12,7 @@ struct AddPhotosFlowView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var model: CaptureViewModel
     @State private var picks: [PhotosPickerItem] = []
+    @State private var showCamera = false
     @State private var searchTarget: SearchTarget?
     private let autoStart: Bool
 
@@ -54,6 +55,13 @@ struct AddPhotosFlowView: View {
             }
             .sheet(item: $searchTarget) { t in
                 CapturePlaceSearchSheet(model: model, cardID: t.id)
+            }
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraCaptureView(onCapture: { shot in
+                    showCamera = false
+                    model.ingest([shot])
+                }, onCancel: { showCamera = false })
+                .ignoresSafeArea()
             }
         }
         .tint(KraftColor.route)
@@ -103,6 +111,13 @@ struct AddPhotosFlowView: View {
                     }
                 } label: { Label("Take a photo", systemImage: "camera").frame(maxWidth: .infinity) }
                 .buttonStyle(.bordered).controlSize(.large)
+            } else if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                // Built-in camera (the real device path); hidden on the simulator and other camera-less devices.
+                Button { showCamera = true } label: {
+                    Label("Take a photo", systemImage: "camera").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered).controlSize(.large)
+                .accessibilityIdentifier("takePhoto")
             }
             Spacer()
         }

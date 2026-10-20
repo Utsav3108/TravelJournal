@@ -7,15 +7,11 @@ struct JourneyShelfView: View {
 
     @State private var path: [AppRoute] = []
     @State private var showCreate = false
+    @State private var showPlaces = false
     @State private var pendingDelete: Journey?
-    @State private var showStylePicker = false
-    @AppStorage(ShelfStyle.storageKey) private var styleRaw = ShelfStyle.default.rawValue
-
-    private var darkChrome: Bool { !journeys.isEmpty && style.wrappedValue.usesDarkChrome }
-
-    private var style: Binding<ShelfStyle> {
-        Binding(get: { ShelfStyle(rawValue: styleRaw) ?? .default }, set: { styleRaw = $0.rawValue })
-    }
+    @State private var query = ""
+    /// Value snapshots for the library screens; rebuilt when the data or the navigation stack changes, not per render.
+    @State private var stories: [LibraryStory] = []
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -24,20 +20,7 @@ struct JourneyShelfView: View {
                 if journeys.isEmpty { emptyState } else { shelf }
             }
             .navigationTitle("My Stories")
-            .navigationBarTitleDisplayMode(darkChrome ? .inline : .automatic)
-            .toolbarColorScheme(darkChrome ? .dark : .light, for: .navigationBar)
-            .toolbarBackground(ShelfStyle.darkChromeColor, for: .navigationBar)
-            .toolbarBackgroundVisibility(darkChrome ? .visible : .automatic, for: .navigationBar)
             .toolbar {
-                if darkChrome {
-                    ToolbarItem(placement: .principal) {
-                        Text("My Stories").font(.headline).foregroundStyle(.white)
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showStylePicker = true } label: { Label("Shelf style", systemImage: "paintbrush") }
-                        .accessibilityIdentifier("shelfStyleToolbar")
-                }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showCreate = true } label: { Label("New story", systemImage: "plus") }
                         .accessibilityIdentifier("newStoryToolbar")
@@ -55,8 +38,10 @@ struct JourneyShelfView: View {
             #if DEBUG
             .task {
                 // Debug launch args: -openSample (journey detail), -openSampleStop (stop editor)
+                // -seedSample (one story), -seedLibrary N (N stories across countries)
                 let args = ProcessInfo.processInfo.arguments
                 if args.contains("-seedSample"), journeys.isEmpty { SampleData.mumbai(in: context) }
+                SampleData.seedFromLaunchArguments(in: context)
                 guard args.contains("-openSample") || args.contains("-openSampleStop") || args.contains("-openSampleStory") else { return }
                 let j = journeys.first ?? SampleData.mumbai(in: context)
                 path = [.journeyDetail(j.persistentModelID)]
@@ -66,7 +51,18 @@ struct JourneyShelfView: View {
                 }
             }
             #endif
-            .sheet(isPresented: $showStylePicker) { ShelfStylePicker(selection: style).preferredColorScheme(.light) }
+            .onAppear(perform: refreshStories)
+            .onChange(of: journeys) { refreshStories() }
+            .onChange(of: path) { refreshStories() }
+            .sheet(isPresented: $showPlaces) {
+                PlacesBrowserView(stories: stories) { scope in
+                    showPlaces = false
+                    if let first = LibraryIndex.stories(in: scope, from: stories).first {
+                        path.append(.coverRack(scope: scope, startStoryID: first.id))
+                    }
+                }
+                .preferredColorScheme(.light)
+            }
             .sheet(isPresented: $showCreate) {
                 CreateJourneyView { journey in
                     path.append(.journeyDetail(journey.persistentModelID))
@@ -91,13 +87,21 @@ struct JourneyShelfView: View {
         .tint(KraftColor.route)
     }
 
+    private func refreshStories() { stories = journeys.libraryStories }
+
+    private func journey(for story: LibraryStory) -> Journey? { journeys.first { $0.id == story.id } }
+
     private var shelf: some View {
-        ShelfStyleContent(
-            style: style.wrappedValue,
-            context: ShelfStyleContext(
-                journeys: journeys,
-                open: { path.append(.journeyDetail($0.persistentModelID)) },
-                requestDelete: { pendingDelete = $0 }
+        LibraryBookcaseView(
+            stories: stories,
+            query: $query,
+            actions: LibraryActions(
+                openStory: { story in
+                    if let j = journey(for: story) { path.append(.journeyDetail(j.persistentModelID)) }
+                },
+                openRack: { scope, start in path.append(.coverRack(scope: scope, startStoryID: start)) },
+                openPlaces: { showPlaces = true },
+                requestDelete: { story in pendingDelete = journey(for: story) }
             )
         )
     }

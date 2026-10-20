@@ -17,7 +17,7 @@ extension View {
             case .journeyDetail(let id): JourneyDetailView(journeyID: id)
             case .stopEditor(let journey, let stop): StopEditorRouteView(journeyID: journey, stopID: stop)
             case .story(let id): StoryViewerView(journeyID: id)
-            case .coverRack: Text("Cover Rack") // TODO(integration): host wires LibraryCoverRackView
+            case .coverRack(let scope, let start): CoverRackRouteView(scope: scope, startStoryID: start)
             }
         }
     }

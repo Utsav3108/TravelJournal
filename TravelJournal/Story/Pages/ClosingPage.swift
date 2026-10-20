@@ -8,7 +8,8 @@ nonisolated struct ClosingTile: Hashable {
     static func tiles(for s: StatsModel) -> [ClosingTile] {
         [ClosingTile(numeral: "\(s.stops)", label: "STOPS"),
          ClosingTile(numeral: PageFormat.numeral(s.km), label: "KM"),
-         ClosingTile(numeral: "\(s.totalMinutes)", label: "MINUTES"),
+         ClosingTile(numeral: StatsFormat.hours(minutes: s.totalMinutes).numeral,
+                     label: StatsFormat.hours(minutes: s.totalMinutes).unit),
          ClosingTile(numeral: s.moneyText ?? "–", label: "SPENT"),
          ClosingTile(numeral: "\(s.photos)", label: "PHOTOS")]
     }

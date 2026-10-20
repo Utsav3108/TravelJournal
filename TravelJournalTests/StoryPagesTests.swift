@@ -92,7 +92,8 @@ final class StoryPagesTests: XCTestCase {
 
     func testClosingTiles() {
         let t = ClosingTile.tiles(for: StoryPageSamples.stats)
-        XCTAssertEqual(t.map(\.label), ["STOPS", "KM", "MINUTES", "SPENT", "PHOTOS"])
+        XCTAssertEqual(t.map(\.label), ["STOPS", "KM", "HOURS", "SPENT", "PHOTOS"])
+        XCTAssertEqual(t[2].numeral, "5½")   // 320 min
         XCTAssertEqual(t[1].numeral, "8.4")
         var s = StoryPageSamples.stats; s.km = nil; s.moneyText = nil
         XCTAssertEqual(ClosingTile.tiles(for: s)[1].numeral, "–")

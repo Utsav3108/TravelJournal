@@ -264,3 +264,13 @@ final class StoryPagesTests: XCTestCase {
         XCTAssertNotNil(render(.closing(cl), metrics: a4))
     }
 }
+
+final class LegConnectorMetricsTests: XCTestCase {
+    func testLabelOnlyInPDF() {
+        XCTAssertFalse(LegConnectorMetrics.showsLegLabel(interactive: true))
+        XCTAssertTrue(LegConnectorMetrics.showsLegLabel(interactive: false))
+    }
+    func testHitTargetAtLeast44() {
+        XCTAssertGreaterThanOrEqual(LegConnectorMetrics.hitSide, 44)
+    }
+}

@@ -134,12 +134,11 @@ struct StopPage: View {
     @ViewBuilder private func legConnector(_ leg: StoryLeg, center: CGPoint, layout L: StopLayout) -> some View {
         let transport = leg.modeRaw.flatMap { KraftTransport(rawValue: $0) }
         let label = KraftFormat.legLabel(mode: transport, minutes: leg.minutes, km: leg.km).uppercased()
+        let showLabel = LegConnectorMetrics.showsLegLabel(interactive: interactive) && !label.isEmpty
         let labelW = PageText.width(label, fontName: PageFont.elite, size: 11, tracking: 1.5)
         let W = L.pageSize.width
         let labelCenterX = min(max(center.x, labelW / 2 + 6), W - labelW / 2 - 6)
-        let circleRect = CGRect(x: center.x - 18, y: center.y - 18, width: 36, height: 36)
-        let labelRect = CGRect(x: labelCenterX - labelW / 2 - 4, y: center.y + 20, width: labelW + 8, height: 20)
-        let hit = (label.isEmpty ? circleRect : circleRect.union(labelRect)).insetBy(dx: -4, dy: -4)
+        let hitSide = LegConnectorMetrics.hitSide
         ZStack(alignment: .topLeading) {
             if !interactive, let story = leg.story, !story.isEmpty {
                 let cardW: CGFloat = 210
@@ -161,7 +160,7 @@ struct StopPage: View {
             }
             .frame(width: 36, height: 36)
             .placed(CGRect(x: center.x - 18, y: center.y - 18, width: 36, height: 36))
-            if !label.isEmpty {
+            if showLabel {
                 Text(label).stampLabel().foregroundStyle(KraftColor.ink).fixedSize()
                     .padding(.horizontal, 4)
                     .background(KraftColor.paper.opacity(0.85))
@@ -169,9 +168,9 @@ struct StopPage: View {
             }
             if interactive, let onLeg = callbacks.onLegTap {
                 Color.clear
-                    .frame(width: max(hit.width, 44), height: max(hit.height, 44))
+                    .frame(width: hitSide, height: hitSide)
                     .contentShape(Rectangle())
-                    .position(x: hit.midX, y: hit.midY)
+                    .position(x: center.x, y: center.y)
                     .onTapGesture { onLeg(leg) }
                     .accessibilityLabel(label.isEmpty ? "Leg" : "Leg: \(label)")
                     .accessibilityAddTraits(.isButton)
@@ -179,6 +178,12 @@ struct StopPage: View {
         }
         .frame(width: L.pageSize.width, height: L.pageSize.height, alignment: .topLeading)
     }
+}
+
+/// Leg connector layout rules: the text label is PDF-only (the viewer shows details in the leg sheet).
+enum LegConnectorMetrics {
+    static let hitSide: CGFloat = 44
+    static func showsLegLabel(interactive: Bool) -> Bool { !interactive }
 }
 
 private extension View {

@@ -1,7 +1,7 @@
 #if os(macOS)
 import SwiftUI
 
-/// File → Export as PDF… (⌘E) and Print… (⌘P), acting on the front journey window. The shelf's book menu has its own.
+/// File → Export as PDF… (⌘E) and Print… (⌘P), acting on the front journey window, or on the selected book when the shelf's bookcase has focus.
 struct ExportCommands: Commands {
     @FocusedValue(\.exportActions) private var actions
 

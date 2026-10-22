@@ -58,6 +58,7 @@ struct MacShelfView: View {
         }
         .tint(KraftColor.route)
         .focusedSceneValue(\.shelfActions, deleteAction)
+        .focusedSceneValue(\.exportActions, exportAction)
         .onAppear(perform: consumeNewJourneyRequest)
         .onChange(of: newJourneyRequests?.pending) { consumeNewJourneyRequest() }
         .onChange(of: query) { expanded = false }
@@ -203,6 +204,14 @@ struct MacShelfView: View {
     private var deleteAction: ShelfActions? {
         guard bookcaseFocused, let journey = selectedJourney else { return nil }
         return ShelfActions(deleteSelected: { pendingDelete = journey })
+    }
+
+    /// ⌘E / ⌘P on the selected book; like delete, only while the bookcase has focus.
+    private var exportAction: ExportActions? {
+        guard bookcaseFocused, let journey = selectedJourney, MacExportCoordinator.canExport(journey) else { return nil }
+        return ExportActions(
+            export: { MacExportCoordinator.shared.start(journey, purpose: .save, origin: .shelf) },
+            print: { MacExportCoordinator.shared.start(journey, purpose: .print, origin: .shelf) })
     }
 
     private func open(_ journey: Journey) { openJourney?(journey) }

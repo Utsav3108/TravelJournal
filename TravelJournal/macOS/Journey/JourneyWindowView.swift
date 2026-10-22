@@ -31,7 +31,9 @@ struct JourneyWindowView: View {
                 Button(isEditing ? "Done" : "Edit") { isEditing.toggle() }
                     .accessibilityIdentifier("editJourney")
             }
+            JourneyExportToolbar(journey: journey)
         }
+        .journeyExportPresentations(journey: journey)
         .storyPhotosFromModel()
         .measuringStatusBarInset()
         .tint(KraftColor.route)

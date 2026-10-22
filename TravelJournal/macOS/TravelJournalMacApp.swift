@@ -33,6 +33,7 @@ struct TravelJournalMacApp: App {
             AppCommands(newJourneyRequests: newJourneyRequests)
             ShelfCommands()
             JourneyCommands()
+            ExportCommands()
         }
 
         WindowGroup("Journey", for: UUID.self) { $journeyID in

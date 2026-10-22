@@ -137,6 +137,7 @@ struct MacShelfView: View {
                     .contextMenu {
                         Button("Open") { open(journey) }
                         Button("Rename…") { startRename(journey) }
+                        ExportContextMenuItems(journey: journey)
                         Divider()
                         Button("Delete…", role: .destructive) { pendingDelete = journey }
                     }

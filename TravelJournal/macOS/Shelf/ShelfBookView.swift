@@ -42,11 +42,13 @@ struct ShelfBookView: View {
         .frame(width: BookcaseReflow.bookSize.width, height: BookcaseReflow.bookSize.height)
         .clipShape(Self.corners)
         .overlay(alignment: .leading) { Rectangle().fill(KraftColor.kraftDark.opacity(0.35)).frame(width: 6) }
-        .overlay { Self.corners.stroke(KraftColor.route, lineWidth: selected ? 3 : 0) }
-        .shadow(color: .black.opacity(hovering || selected ? 0.4 : 0.28), radius: hovering ? 8 : 5, x: 0, y: hovering ? 6 : 4)
+        // Selection is a book pulled forward from the shelf, not an outline.
+        .shadow(color: .black.opacity(selected ? 0.45 : hovering ? 0.4 : 0.28),
+                radius: selected ? 10 : hovering ? 8 : 5, x: 0, y: selected ? 8 : hovering ? 6 : 4)
         .rotationEffect(.degrees(lean), anchor: .bottom)
-        .offset(y: hovering ? -4 : 0)
+        .offset(y: selected ? -8 : hovering ? -4 : 0)
         .animation(.easeOut(duration: 0.15), value: hovering)
+        .animation(.easeOut(duration: 0.15), value: selected)
         .onHover { hovering = $0 }
         .pointerStyle(.link)
         .contentShape(Rectangle())

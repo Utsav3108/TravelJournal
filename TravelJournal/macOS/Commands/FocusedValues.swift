@@ -14,8 +14,19 @@ struct JourneyActions {
     var addStop: () -> Void
 }
 
+/// What the journey window offers while it shows the story strip (nil while editing, so these menu items grey out).
+/// Separate from `JourneyActions` because the list editor sets that value from deeper in the view tree.
+struct StripActions {
+    var zoomIn: () -> Void
+    var zoomOut: () -> Void
+    var fit: () -> Void
+    var previousStop: () -> Void
+    var nextStop: () -> Void
+}
+
 private struct JourneyWindowSelectionKey: FocusedValueKey { typealias Value = JourneyWindowSelection }
 private struct JourneyActionsKey: FocusedValueKey { typealias Value = JourneyActions }
+private struct StripActionsKey: FocusedValueKey { typealias Value = StripActions }
 
 extension FocusedValues {
     var journeySelection: JourneyWindowSelection? {
@@ -26,6 +37,11 @@ extension FocusedValues {
     var journeyActions: JourneyActions? {
         get { self[JourneyActionsKey.self] }
         set { self[JourneyActionsKey.self] = newValue }
+    }
+
+    var stripActions: StripActions? {
+        get { self[StripActionsKey.self] }
+        set { self[StripActionsKey.self] = newValue }
     }
 }
 #endif

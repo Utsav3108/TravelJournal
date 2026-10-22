@@ -37,13 +37,7 @@ private struct JourneyWindowContent: View {
     var body: some View {
         Group {
             if let journey = matches.first {
-                NavigationStack {
-                    JourneyDetailView(journeyID: journey.persistentModelID)
-                        .appDestinations()
-                }
-                .measuringStatusBarInset()
-                .tint(KraftColor.route)
-                .focusedSceneValue(\.journeySelection, JourneyWindowSelection(journeyID: journeyID))
+                JourneyWindowView(journey: journey)
             } else {
                 ContentUnavailableView("Story not found", systemImage: "book.closed")
             }

@@ -18,6 +18,7 @@ struct JourneyWindowView: View {
             if isEditing {
                 NavigationStack {
                     JourneyDetailContent(journey: journey)
+                        .environment(\.readStory, { isEditing = false })
                         .appDestinations()
                 }
             } else {

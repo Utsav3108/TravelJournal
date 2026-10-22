@@ -19,7 +19,18 @@ private struct NewJourneyRequestsKey: EnvironmentKey {
     static let defaultValue: NewJourneyRequests? = nil
 }
 
+/// What the editor's "Read story" button does. `nil` (iPhone) pushes the swipe viewer; the Mac journey window
+/// injects a closure that returns to its story strip, so Mac never shows the swipe viewer.
+private struct ReadStoryKey: EnvironmentKey {
+    static let defaultValue: (() -> Void)? = nil
+}
+
 extension EnvironmentValues {
+    var readStory: (() -> Void)? {
+        get { self[ReadStoryKey.self] }
+        set { self[ReadStoryKey.self] = newValue }
+    }
+
     var openJourney: ((Journey) -> Void)? {
         get { self[OpenJourneyKey.self] }
         set { self[OpenJourneyKey.self] = newValue }

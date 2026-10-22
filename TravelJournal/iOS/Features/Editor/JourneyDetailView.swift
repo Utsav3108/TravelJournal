@@ -25,6 +25,7 @@ struct JourneyDetailContent: View {
     @Environment(\.modelContext) private var context
     @Environment(\.editorPhotoStore) private var photoStore
     @Environment(\.servicePlaceLookup) private var placeLookup
+    @Environment(\.readStory) private var readStory
 
     @State private var showAddPhotos = false
     @State private var destination: DetailDestination?
@@ -82,10 +83,15 @@ struct JourneyDetailContent: View {
         .inlineNavigationTitle()
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                NavigationLink(value: AppRoute.story(journey.persistentModelID)) {
-                    Label("Read story", systemImage: "book")
+                if let readStory {
+                    Button(action: readStory) { Label("Read story", systemImage: "book") }
+                        .accessibilityIdentifier("readStory")
+                } else {
+                    NavigationLink(value: AppRoute.story(journey.persistentModelID)) {
+                        Label("Read story", systemImage: "book")
+                    }
+                    .accessibilityIdentifier("readStory")
                 }
-                .accessibilityIdentifier("readStory")
             }
             ToolbarItem(placement: .primaryAction) {
                 Button { showAddPhotos = true } label: { Label("Add photos", systemImage: "photo.badge.plus") }

@@ -23,7 +23,7 @@ protocol PhotoStoring {
 
 enum PhotoLimits {
     static let maxPerStop = 4
-    static let displayMaxPixel = 2400
+    static let displayMaxPixel = 2048
     static let thumbMaxPixel = 600
 }
 
@@ -53,15 +53,15 @@ final class FilePhotoStore: PhotoStoring {
     /// Directory containing `Photos/`. Defaults to Application Support/TravelJournal.
     let baseURL: URL
 
+    nonisolated static var defaultBaseURL: URL {
+        let support = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                                    appropriateFor: nil, create: true))
+            ?? FileManager.default.temporaryDirectory
+        return support.appendingPathComponent("TravelJournal", isDirectory: true)
+    }
+
     init(baseURL: URL? = nil) {
-        if let baseURL {
-            self.baseURL = baseURL
-        } else {
-            let support = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                        appropriateFor: nil, create: true))
-                ?? FileManager.default.temporaryDirectory
-            self.baseURL = support.appendingPathComponent("TravelJournal", isDirectory: true)
-        }
+        self.baseURL = baseURL ?? Self.defaultBaseURL
     }
 
     func url(for relativePath: String) -> URL { baseURL.appendingPathComponent(relativePath) }
@@ -72,15 +72,17 @@ final class FilePhotoStore: PhotoStoring {
         guard let src = CGImageSourceCreateWithData(data as CFData, nil) else { throw PhotoStoreError.undecodable }
 
         let meta = Self.metadata(of: src)
-        guard let full = Self.downscaled(src, maxPixel: PhotoLimits.displayMaxPixel),
-              let thumb = Self.downscaled(src, maxPixel: PhotoLimits.thumbMaxPixel) else { throw PhotoStoreError.undecodable }
+        guard let full = PhotoEncoding.downscaled(src, maxPixel: PhotoLimits.displayMaxPixel),
+              let fullData = PhotoEncoding.jpegData(full),
+              let thumb = PhotoEncoding.downscaled(src, maxPixel: PhotoLimits.thumbMaxPixel),
+              let thumbData = PhotoEncoding.jpegData(thumb) else { throw PhotoStoreError.undecodable }
 
         let id = UUID()
         let rel = "Photos/\(journeyID.uuidString)/\(id.uuidString).jpg"
         let thumbRel = "Photos/\(journeyID.uuidString)/thumbs/\(id.uuidString).jpg"
         do {
-            try Self.writeJPEG(full, to: url(for: rel))
-            try Self.writeJPEG(thumb, to: url(for: thumbRel))
+            try Self.write(fullData, to: url(for: rel))
+            try Self.write(thumbData, to: url(for: thumbRel))
         } catch {
             try? FileManager.default.removeItem(at: url(for: rel))
             try? FileManager.default.removeItem(at: url(for: thumbRel))
@@ -90,6 +92,7 @@ final class FilePhotoStore: PhotoStoring {
         let photo = StopPhoto(id: id, relativePath: rel, thumbRelativePath: thumbRel,
                               orderIndex: (stop.photos.map(\.orderIndex).max() ?? -1) + 1,
                               isHero: stop.photos.isEmpty)
+        photo.imageData = fullData
         photo.pixelWidth = full.width
         photo.pixelHeight = full.height
         photo.captureDate = meta.date
@@ -132,25 +135,9 @@ final class FilePhotoStore: PhotoStoring {
 
     // MARK: ImageIO helpers
 
-    private static func downscaled(_ src: CGImageSource, maxPixel: Int) -> CGImage? {
-        let opts: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxPixel,
-            kCGImageSourceShouldCacheImmediately: true,
-        ]
-        return CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary)
-    }
-
-    private static func writeJPEG(_ image: CGImage, to url: URL) throws {
+    static func write(_ data: Data, to url: URL) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let data = NSMutableData()
-        guard let dest = CGImageDestinationCreateWithData(data, UTType.jpeg.identifier as CFString, 1, nil) else {
-            throw PhotoStoreError.writeFailed
-        }
-        CGImageDestinationAddImage(dest, image, [kCGImageDestinationLossyCompressionQuality: 0.85] as CFDictionary)
-        guard CGImageDestinationFinalize(dest) else { throw PhotoStoreError.writeFailed }
-        try (data as Data).write(to: url, options: .atomic)
+        try data.write(to: url, options: .atomic)
     }
 
     private static func metadata(of src: CGImageSource) -> (date: Date?, lat: Double?, lon: Double?) {
@@ -171,5 +158,30 @@ final class FilePhotoStore: PhotoStoring {
             lat = la; lon = lo
         }
         return (date, lat, lon)
+    }
+}
+
+/// Rebuilds this device's local cache files (display image and thumbnail) from synced `StopPhoto.imageData`.
+/// Interim bridge: view code still loads photos by relative path; once it decodes `imageData` directly (shared
+/// `ImageDecoding`), this and the file paths can go away. Only missing files are written.
+enum PhotoCache {
+    @discardableResult
+    static func warm(context: ModelContext, store: FilePhotoStore) -> Int {
+        var d = FetchDescriptor<StopPhoto>()
+        d.propertiesToFetch = [\.relativePath, \.thumbRelativePath]
+        guard let photos = try? context.fetch(d) else { return 0 }
+        let fm = FileManager.default
+        var written = 0
+        for photo in photos {
+            let rel = photo.relativePath, thumbRel = photo.thumbRelativePath
+            guard !rel.isEmpty, !rel.hasPrefix("sample:") else { continue }
+            let needFull = !fm.fileExists(atPath: store.url(for: rel).path)
+            let needThumb = !thumbRel.isEmpty && !fm.fileExists(atPath: store.url(for: thumbRel).path)
+            guard needFull || needThumb, let data = photo.imageData else { continue }
+            if needFull, (try? FilePhotoStore.write(data, to: store.url(for: rel))) != nil { written += 1 }
+            if needThumb, let enc = PhotoEncoding.reencoded(data, maxPixel: PhotoLimits.thumbMaxPixel),
+               (try? FilePhotoStore.write(enc.data, to: store.url(for: thumbRel))) != nil { written += 1 }
+        }
+        return written
     }
 }

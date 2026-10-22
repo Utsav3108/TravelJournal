@@ -19,6 +19,16 @@ final class TravelJournalUITests: XCTestCase {
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
     }
 
+    /// A store that can't open shows the plain error screen (no crash, no empty shelf).
+    @MainActor
+    func testStoreFailureShowsErrorScreen() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-forceStoreFailure"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Something went wrong"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Try again"].exists)
+    }
+
     /// Story viewer smoke test. Relies on the DEBUG launch argument `-openSampleStory` and the accessibility
     /// identifiers `storyViewer`, `pageIndicator`, `legCard`, `photoFullScreen`, `exportPDF` added by the viewer
     /// work. Skips (not fails) when the viewer is not in this build.

@@ -1,13 +1,16 @@
 import Foundation
 import SwiftData
 
-/// One row per photo file. Pixels live on disk; only relative paths are stored.
+/// One row per photo. The display image (JPEG, long edge <= `PhotoLimits.displayMaxPixel`) lives in `imageData` and
+/// syncs through CloudKit. `relativePath`/`thumbRelativePath` name this device's local cache files (rebuilt from
+/// `imageData` by `PhotoCache`); thumbnails are generated per device and never synced.
 @Model
 final class StopPhoto {
     var id: UUID = UUID()
     var stop: Stop?
     var orderIndex: Int = 0
     var isHero: Bool = false
+    @Attribute(.externalStorage) var imageData: Data?
     var relativePath: String = ""
     var thumbRelativePath: String = ""
     var pixelWidth: Int = 0

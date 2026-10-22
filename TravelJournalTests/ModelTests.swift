@@ -171,7 +171,8 @@ final class ModelTests: XCTestCase {
         }
         let photos = s[0].orderedPhotos
         XCTAssertEqual(photos.map(\.isHero), [true, false, false, false])
-        XCTAssertEqual(max(photos[0].pixelWidth, photos[0].pixelHeight), 2400)
+        XCTAssertEqual(max(photos[0].pixelWidth, photos[0].pixelHeight), 2048)
+        XCTAssertNotNil(photos[0].imageData, "display JPEG is stored on the model so it syncs")
         XCTAssertTrue(FileManager.default.fileExists(atPath: store.url(for: photos[0].relativePath).path))
         let thumb = CGImageSourceCreateWithURL(store.url(for: photos[0].thumbRelativePath) as CFURL, nil)!
         let tp = CGImageSourceCopyPropertiesAtIndex(thumb, 0, nil) as! [CFString: Any]

@@ -23,8 +23,15 @@ final class Stop {
     var costAmount: Decimal?
     var costCurrency: String?
 
-    @Relationship(deleteRule: .cascade, inverse: \StopPhoto.stop)
-    var photos: [StopPhoto] = []
+    /// CloudKit requires to-many relationships to be optional. `originalName` keeps the V2 column ("photos") so the
+    /// migration treats this as a rename, not a new relationship. Use `photos`.
+    @Relationship(deleteRule: .cascade, originalName: "photos", inverse: \StopPhoto.stop)
+    var photosStorage: [StopPhoto]?
+
+    var photos: [StopPhoto] {
+        get { photosStorage ?? [] }
+        set { photosStorage = newValue }
+    }
 
     @Relationship(deleteRule: .cascade, inverse: \Leg.fromStop)
     var outgoingLeg: Leg?

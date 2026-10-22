@@ -11,7 +11,7 @@ struct AppRootView: View {
         Group {
             switch store.state {
             case .ready(let container):
-                JourneyShelfView()
+                shelf
                     .environment(\.servicePlaceLookup, placeLookup)
                     .modelContainer(container)
             case .failed:
@@ -19,5 +19,14 @@ struct AppRootView: View {
             }
         }
         .preferredColorScheme(.light)
+    }
+
+    /// iPhone keeps its spine bookcase; the Mac shows face-out covers that reflow with the window.
+    @ViewBuilder private var shelf: some View {
+        #if os(macOS)
+        MacShelfView()
+        #else
+        JourneyShelfView()
+        #endif
     }
 }

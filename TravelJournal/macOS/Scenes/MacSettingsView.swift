@@ -15,13 +15,11 @@ struct MacSettingsView: View {
 }
 
 private struct ICloudSettings: View {
+    @Environment(\.syncState) private var state
+
     var body: some View {
         Form {
-            if AppContainer.cloudKitEnabled {
-                Text("Your journeys sync through iCloud.")
-            } else {
-                Text("Journeys stay on this device. Sign in to iCloud to sync.")
-            }
+            Text(SyncCopy.settingsLine(for: state))
         }
         .formStyle(.grouped)
     }

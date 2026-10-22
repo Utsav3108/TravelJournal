@@ -95,6 +95,9 @@ struct JourneyDetailContent: View {
             ToolbarItem(placement: .secondaryAction) { EditButton() }
             #endif
         }
+        #if os(macOS)
+        .focusedSceneValue(\.journeyActions, JourneyActions(addStop: { destination = .newStop }))
+        #endif
         .sheet(isPresented: $showAddPhotos) { AddPhotosFlowView(journey: journey, photoImporter: PhotoLibraryImporter(), placeLookup: placeLookup, photoStore: photoStore) }
         .navigationDestination(item: $destination) { dest in
             switch dest {

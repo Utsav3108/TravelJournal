@@ -3,6 +3,8 @@ import SwiftData
 
 struct JourneyShelfView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.openJourney) private var openJourney
+    @Environment(\.newJourneyRequests) private var newJourneyRequests
     @Query(sort: \Journey.date, order: .reverse) private var journeys: [Journey]
 
     @State private var path: [AppRoute] = []
@@ -63,6 +65,8 @@ struct JourneyShelfView: View {
             .onAppear(perform: refreshStories)
             .onChange(of: journeys) { refreshStories() }
             .onChange(of: path) { refreshStories() }
+            .onAppear(perform: consumeNewJourneyRequest)
+            .onChange(of: newJourneyRequests?.pending) { consumeNewJourneyRequest() }
             .sheet(isPresented: $showPlaces) {
                 PlacesBrowserView(stories: stories) { scope in
                     showPlaces = false
@@ -73,9 +77,7 @@ struct JourneyShelfView: View {
                 .preferredColorScheme(.light)
             }
             .sheet(isPresented: $showCreate) {
-                CreateJourneyView { journey in
-                    path.append(.journeyDetail(journey.persistentModelID))
-                }
+                CreateJourneyView { journey in open(journey) }
                 .preferredColorScheme(.light)
             }
             .confirmationDialog(
@@ -99,6 +101,16 @@ struct JourneyShelfView: View {
 
     private func refreshStories() { stories = journeys.libraryStories }
 
+    private func open(_ journey: Journey) {
+        if let openJourney { openJourney(journey) } else { path.append(.journeyDetail(journey.persistentModelID)) }
+    }
+
+    private func consumeNewJourneyRequest() {
+        guard let requests = newJourneyRequests, requests.pending else { return }
+        requests.pending = false
+        showCreate = true
+    }
+
     private func journey(for story: LibraryStory) -> Journey? { journeys.first { $0.id == story.id } }
 
     private var shelf: some View {
@@ -107,7 +119,7 @@ struct JourneyShelfView: View {
             query: $query,
             actions: LibraryActions(
                 openStory: { story in
-                    if let j = journey(for: story) { path.append(.journeyDetail(j.persistentModelID)) }
+                    if let j = journey(for: story) { open(j) }
                 },
                 openRack: { scope, start in path.append(.coverRack(scope: scope, startStoryID: start)) },
                 openPlaces: { showPlaces = true },

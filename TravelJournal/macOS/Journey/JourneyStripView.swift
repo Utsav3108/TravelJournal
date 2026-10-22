@@ -79,7 +79,10 @@ struct JourneyStripView: View {
         // No outline on the pages: the strip is one continuous sheet, and a border would cut the route at every seam.
         // Selection and hover are shown in the sidebar.
         return StoryPageView(page: item.page, metrics: metrics,
-                             callbacks: StoryPageCallbacks(onLegTap: { legCard = $0 }),
+                             callbacks: StoryPageCallbacks(onLegTap: { leg in
+                                 // With the inspector open a leg click selects the leg for editing; otherwise it is a glance popover.
+                                 if model.inspectorShown { model.selectLeg(leg.id) } else { legCard = leg }
+                             }),
                              entryY: StopLayout.entryY(at: index, in: pages, metrics: metrics))
             .frame(width: size.width, height: size.height)
             .contentShape(Rectangle())

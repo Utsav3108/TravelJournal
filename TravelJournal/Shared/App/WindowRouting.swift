@@ -13,6 +13,10 @@ private struct OpenJourneyKey: EnvironmentKey {
 @Observable
 final class NewJourneyRequests {
     var pending = false
+    /// "New Journey from Photos…": the create sheet is followed by the import sheet in the new journey's window.
+    var fromPhotos = false
+    /// Journeys whose window should present the import sheet when it opens.
+    var importOnOpen: Set<UUID> = []
 }
 
 private struct NewJourneyRequestsKey: EnvironmentKey {

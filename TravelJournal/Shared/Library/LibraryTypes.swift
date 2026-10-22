@@ -10,6 +10,7 @@ struct LibraryStory: Identifiable, Hashable, Sendable {
     var country: String?
     var weight: Int             // stops count; drives spine thickness
     var coverPhotoID: UUID?     // Journey.coverPhoto?.id; nil if none (or a sample photo with no image)
+    var searchText: String = "" // stop names and story text, for the Mac shelf's full-text search
 }
 
 /// Which stories a Cover Rack shows. `query` (non-empty) narrows the scope to search matches.

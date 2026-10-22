@@ -1,8 +1,16 @@
 #if os(macOS)
 import SwiftUI
 
-/// Menu items for the shelf window (Phase 4a): Delete on the selected book, and anything else the shelf makes work.
+/// Menu items for the shelf window (Phase 4a): Delete on the selected book.
 struct ShelfCommands: Commands {
-    var body: some Commands { }
+    @FocusedValue(\.shelfActions) private var shelfActions
+
+    var body: some Commands {
+        CommandGroup(after: .pasteboard) {
+            Button("Delete") { shelfActions?.deleteSelected() }
+                .keyboardShortcut(.delete, modifiers: .command)
+                .disabled(shelfActions == nil)
+        }
+    }
 }
 #endif

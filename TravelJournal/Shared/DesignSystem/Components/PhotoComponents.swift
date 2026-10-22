@@ -15,8 +15,10 @@ struct Polaroid: View {
         let strip = width * 0.22
         VStack(spacing: 0) {
             Group {
-                if let photo { photo.resizable().scaledToFill() } else { KraftPhotoPlaceholder() }
+                if let photo { photo.resizable().scaledToFill().transition(.opacity) }
+                else { KraftPhotoPlaceholder().transition(.opacity) }
             }
+            .animation(.easeOut(duration: 0.25), value: photo != nil)   // photo bytes can arrive late (iCloud): fade in
             .frame(width: window, height: window)
             .clipped()
             .overlay(Rectangle().stroke(KraftColor.kraftDark.opacity(0.3), lineWidth: 0.5))
@@ -117,8 +119,10 @@ struct TapedPhoto: View {
         let rot = Seed.rotation(id: seed)
         ZStack {
             Group {
-                if let photo { photo.resizable().scaledToFill() } else { KraftPhotoPlaceholder(hue: 0.55) }
+                if let photo { photo.resizable().scaledToFill().transition(.opacity) }
+                else { KraftPhotoPlaceholder(hue: 0.55).transition(.opacity) }
             }
+            .animation(.easeOut(duration: 0.25), value: photo != nil)
             .frame(width: size.width, height: size.height)
             .clipped()
             .padding(4)

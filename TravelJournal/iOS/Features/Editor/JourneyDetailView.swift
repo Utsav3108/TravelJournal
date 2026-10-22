@@ -101,9 +101,6 @@ struct JourneyDetailContent: View {
             ToolbarItem(placement: .secondaryAction) { EditButton() }
             #endif
         }
-        #if os(macOS)
-        .focusedSceneValue(\.journeyActions, JourneyActions(addStop: { destination = .newStop }))
-        #endif
         .sheet(isPresented: $showAddPhotos) { AddPhotosFlowView(journey: journey, photoImporter: PhotoLibraryImporter(), placeLookup: placeLookup, photoStore: photoStore) }
         .navigationDestination(item: $destination) { dest in
             switch dest {
@@ -144,7 +141,14 @@ struct JourneyDetailContent: View {
         }
     }
 
-    private var headerSection: some View {
+    private var headerSection: some View { JourneyFieldsSection(journey: journey) }
+}
+
+/// Title, date, city, country and the two notes. Shared by the iPhone list editor and the Mac inspector.
+struct JourneyFieldsSection: View {
+    @Bindable var journey: Journey
+
+    var body: some View {
         Section {
             TextField("Title", text: $journey.title)
                 .font(KraftFont.stopName(30, scaled: true))

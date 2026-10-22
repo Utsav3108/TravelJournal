@@ -32,13 +32,14 @@ struct TravelJournalMacApp: App {
         .commands {
             AppCommands(newJourneyRequests: newJourneyRequests)
             ShelfCommands()
-            JourneyCommands()
+            JourneyCommands(newJourneyRequests: newJourneyRequests)
             ExportCommands()
         }
 
         WindowGroup("Journey", for: UUID.self) { $journeyID in
             if let journeyID {
                 JourneyWindowRoot(store: store, placeLookup: placeLookup, journeyID: journeyID)
+                    .environment(\.newJourneyRequests, newJourneyRequests)
                     .environment(\.syncState, sync.state)
             }
         }

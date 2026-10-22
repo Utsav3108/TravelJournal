@@ -24,8 +24,8 @@ struct StopEditorView: View {
     private var isNew: Bool { existing == nil }
 
     var body: some View {
-        StopForm(stop: draft, journey: journey, costText: $costText, minutesText: $minutesText,
-                 showPlaceSearch: $showPlaceSearch, photoStore: photoStore, canEditPhotos: !isNew)
+        StopFormView(stop: draft, journey: journey, costText: $costText, minutesText: $minutesText,
+                     showPlaceSearch: $showPlaceSearch, photoStore: photoStore, canEditPhotos: !isNew)
             .navigationTitle(isNew ? "New stop" : (draft.placeName.isEmpty ? "Stop" : draft.placeName))
             .inlineNavigationTitle()
             .toolbar {
@@ -48,7 +48,8 @@ struct StopEditorView: View {
     }
 }
 
-private struct StopForm: View {
+/// The stop form, shared by the iPhone editor screen and the Mac inspector.
+struct StopFormView: View {
     @Bindable var stop: Stop
     let journey: Journey
     @Binding var costText: String
@@ -56,8 +57,24 @@ private struct StopForm: View {
     @Binding var showPlaceSearch: Bool
     let photoStore: any PhotoStoring
     let canEditPhotos: Bool
+    /// The Mac inspector focuses the name of a stop it has just added.
+    let focusNameOnAppear: Bool
     @State private var picks: [PhotosPickerItem] = []
     @State private var importNote: String?
+    @FocusState private var nameFocused: Bool
+
+    init(stop: Stop, journey: Journey, costText: Binding<String>, minutesText: Binding<String>,
+         showPlaceSearch: Binding<Bool>, photoStore: any PhotoStoring, canEditPhotos: Bool,
+         focusNameOnAppear: Bool = false) {
+        self.stop = stop
+        self.journey = journey
+        self._costText = costText
+        self._minutesText = minutesText
+        self._showPlaceSearch = showPlaceSearch
+        self.photoStore = photoStore
+        self.canEditPhotos = canEditPhotos
+        self.focusNameOnAppear = focusNameOnAppear
+    }
 
     private func addPhotos(_ items: [PhotosPickerItem]) async {
         var saved = 0, failed = 0
@@ -84,14 +101,18 @@ private struct StopForm: View {
         }
         .foregroundStyle(KraftColor.ink)
         .calmForm()
+        .onAppear { if focusNameOnAppear { nameFocused = true } }
     }
 
     // MARK: Sections
 
     private var placeSection: some View {
         Section {
-            TextField("Place name (required)", text: $stop.placeName)
+            // A prompt, not just a title: on the Mac a form row draws the title as a label beside the field.
+            TextField("Place name", text: $stop.placeName, prompt: Text("Place name (required)"))
+                .labelsHidden()
                 .font(KraftFont.stopName(28, scaled: true))
+                .focused($nameFocused)
                 .accessibilityIdentifier("placeName")
             Picker("Category", selection: Binding(get: { stop.category }, set: { stop.category = $0 })) {
                 Text("None").tag(StopCategory?.none)

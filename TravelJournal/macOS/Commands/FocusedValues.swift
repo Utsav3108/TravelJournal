@@ -8,10 +8,17 @@ struct JourneyWindowSelection: Equatable {
     var selectedStopID: UUID?
 }
 
-/// Actions the front journey window offers to the menu bar. Later phases add inspector, sidebar, zoom and
-/// move-stop here as they become real.
+/// Actions the front journey window offers to the menu bar. Optional closures are nil when they don't apply
+/// (nothing selected, already first or last), so the menu items grey out.
 struct JourneyActions {
     var addStop: () -> Void
+    var importPhotos: () -> Void
+    var showDetails: () -> Void
+    var toggleInspector: () -> Void
+    var inspectorShown: Bool
+    var deleteSelectedStop: (() -> Void)?
+    var moveSelectedStopEarlier: (() -> Void)?
+    var moveSelectedStopLater: (() -> Void)?
 }
 
 /// What the journey window offers while it shows the story strip (nil while editing, so these menu items grey out).

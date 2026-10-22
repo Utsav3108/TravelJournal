@@ -7,5 +7,11 @@ enum TextInputFocus {
     @MainActor static var isEditing: Bool {
         NSApp.keyWindow?.firstResponder is NSText   // a focused text field's field editor is an NSTextView
     }
+
+    /// ⌘⌫ is both "delete the selected stop" and "delete to the start of the line" in a text field; while a field is
+    /// being edited the menu command hands the key back to the text.
+    @MainActor static func deleteToBeginningOfLine() {
+        NSApp.sendAction(#selector(NSResponder.deleteToBeginningOfLine(_:)), to: nil, from: nil)
+    }
 }
 #endif

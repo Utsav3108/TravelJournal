@@ -7,13 +7,48 @@ import SwiftUI
 struct JourneyEditor {
     let context: ModelContext
     let photos: PhotoStoring
+    /// When set (the Mac journey window), add / move / delete register undo steps with it. iPhone passes nil.
+    let undoManager: UndoManager?
 
-    init(context: ModelContext, photos: PhotoStoring) {
+    init(context: ModelContext, photos: PhotoStoring, undoManager: UndoManager? = nil) {
         self.context = context
         self.photos = photos
+        self.undoManager = undoManager
     }
 
     func addStop(_ stop: Stop, to journey: Journey, at index: Int? = nil) {
+        insert(stop, into: journey, at: index)
+        registerUndo(target: journey, name: "Add Stop") { $0.deleteStop(stop, in: journey) }
+    }
+
+    func moveStops(in journey: Journey, from: IndexSet, to: Int) {
+        var list = journey.orderedStops
+        let before = list.map(\.id)
+        let legs = LegContentMap(journey)
+        list.move(fromOffsets: from, toOffset: to)
+        apply(list, in: journey)
+        registerUndo(target: journey, name: "Move Stop") { $0.restoreOrder(before, legs: legs, in: journey) }
+    }
+
+    func deleteStop(_ stop: Stop, in journey: Journey) {
+        let snapshot = StopSnapshot(stop, index: stop.orderIndex)
+        undoManager?.removeAllActions(withTarget: stop)   // edits to a stop that is about to be rebuilt as a new object
+        let list = journey.orderedStops.filter { $0 !== stop }
+        if let l = stop.outgoingLeg { stop.outgoingLeg = nil; context.delete(l) }
+        if let l = stop.incomingLeg { stop.incomingLeg = nil; l.fromStop?.outgoingLeg = nil; context.delete(l) }
+        journey.stops.removeAll { $0 === stop }
+        context.delete(stop)
+        apply(list, in: journey)
+        registerUndo(target: journey, name: "Delete Stop") { $0.restoreStop(snapshot, in: journey) }
+    }
+
+    func deleteJourney(_ journey: Journey) {
+        context.delete(journey)
+    }
+
+    // MARK: Undo
+
+    private func insert(_ stop: Stop, into journey: Journey, at index: Int?) {
         var list = journey.orderedStops.filter { $0 !== stop }
         list.insert(stop, at: max(0, min(index ?? list.count, list.count)))
         if stop.modelContext == nil { context.insert(stop) }
@@ -21,23 +56,40 @@ struct JourneyEditor {
         apply(list, in: journey)
     }
 
-    func moveStops(in journey: Journey, from: IndexSet, to: Int) {
-        var list = journey.orderedStops
-        list.move(fromOffsets: from, toOffset: to)
-        apply(list, in: journey)
+    /// Registers `action` as the undo step; running it registers the inverse, so redo works the same way.
+    private func registerUndo(target: AnyObject, name: String, _ action: @escaping @MainActor (JourneyEditor) -> Void) {
+        guard let undoManager else { return }
+        let editor = self
+        undoManager.registerUndo(withTarget: target) { _ in MainActor.assumeIsolated { action(editor) } }
+        if !undoManager.isUndoing && !undoManager.isRedoing { undoManager.setActionName(name) }
     }
 
-    func deleteStop(_ stop: Stop, in journey: Journey) {
-        let list = journey.orderedStops.filter { $0 !== stop }
-        if let l = stop.outgoingLeg { stop.outgoingLeg = nil; context.delete(l) }
-        if let l = stop.incomingLeg { stop.incomingLeg = nil; l.fromStop?.outgoingLeg = nil; context.delete(l) }
-        journey.stops.removeAll { $0 === stop }
-        context.delete(stop)
-        apply(list, in: journey)
+    /// Rebuilds a deleted stop (same id, fields, photos with bytes) at its old position, then puts its legs' content back.
+    @discardableResult
+    private func restoreStop(_ snapshot: StopSnapshot, in journey: Journey) -> Stop {
+        let stop = Stop(placeName: "")
+        stop.id = snapshot.id
+        snapshot.content.apply(to: stop)
+        context.insert(stop)
+        for p in snapshot.photos {
+            let photo = p.makePhoto()
+            context.insert(photo)
+            photo.stop = stop
+        }
+        insert(stop, into: journey, at: snapshot.index)
+        if let c = snapshot.incoming, let leg = stop.incomingLeg { c.apply(to: leg) }
+        if let c = snapshot.outgoing, let leg = stop.outgoingLeg { c.apply(to: leg) }
+        registerUndo(target: journey, name: "Delete Stop") { $0.deleteStop(stop, in: journey) }
+        return stop
     }
 
-    func deleteJourney(_ journey: Journey) {
-        context.delete(journey)
+    private func restoreOrder(_ ids: [UUID], legs: LegContentMap, in journey: Journey) {
+        let current = journey.orderedStops.map(\.id)
+        let currentLegs = LegContentMap(journey)
+        let byID = Dictionary(uniqueKeysWithValues: journey.orderedStops.map { ($0.id, $0) })
+        apply(ids.compactMap { byID[$0] }, in: journey)
+        legs.restore(in: journey)
+        registerUndo(target: journey, name: "Move Stop") { $0.restoreOrder(current, legs: currentLegs, in: journey) }
     }
 
     private func apply(_ list: [Stop], in journey: Journey) {

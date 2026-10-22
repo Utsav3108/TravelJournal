@@ -17,6 +17,24 @@ final class JourneyWindowModel {
     /// `Stop.id` string of the selected / hovered stop.
     var selectedStopID: String?
     var hoveredStopID: String?
+    /// `StoryLeg.id` ("leg-<Leg.id>") of the leg selected for the inspector. A leg and a stop are never both selected.
+    var selectedLegID: String?
+    var inspectorShown = false
+    /// A stop that was just added: its inspector focuses the name field.
+    var justAddedStopID: String?
+
+    /// What the inspector edits: a selected leg, else a selected stop, else the journey itself.
+    enum InspectorTarget: Equatable {
+        case journey
+        case stop(String)
+        case leg(String)
+    }
+
+    var inspectorTarget: InspectorTarget {
+        if let selectedLegID { return .leg(selectedLegID) }
+        if let selectedStopID { return .stop(selectedStopID) }
+        return .journey
+    }
     var zoom: CGFloat = StripComposer.defaultZoom
     /// Size of the strip's viewport, for "fit".
     var viewport: CGSize = .zero
@@ -34,8 +52,48 @@ final class JourneyWindowModel {
 
     func select(_ stopID: String?, center: Bool = true) {
         selectedStopID = stopID
+        if stopID != nil { selectedLegID = nil }
         guard center, let i = StripComposer.index(ofStop: stopID, in: items) else { return }
         centerRequest = CenterRequest(pageID: items[i].id)
+    }
+
+    /// A leg connector was clicked with the inspector open: the inspector edits that leg.
+    func selectLeg(_ legID: String) {
+        selectedLegID = legID
+        selectedStopID = nil
+    }
+
+    /// ⌘I: the inspector shows the journey itself.
+    func showJourneyDetails() {
+        selectedLegID = nil
+        selectedStopID = nil
+        inspectorShown = true
+    }
+
+    /// Everything the strip shows, as a comparable value, so the window can rebuild the strip after any edit
+    /// (typing in the inspector, undo, a finished import) without the editors having to tell it.
+    struct Signature: Equatable {
+        struct Leg: Equatable { var id: UUID; var content: LegContent }
+        struct Stop: Equatable {
+            var id: UUID
+            var order: Int
+            var content: StopContent
+            var photos: [String]
+            var leg: Leg?
+        }
+        var journey: JourneyContent
+        var stops: [Stop]
+    }
+
+    @MainActor
+    static func signature(of journey: Journey) -> Signature {
+        Signature(
+            journey: JourneyContent(journey),
+            stops: journey.orderedStops.map { s in
+                .init(id: s.id, order: s.orderIndex, content: StopContent(s),
+                      photos: s.orderedPhotos.map { "\($0.id)|\($0.orderIndex)|\($0.isHero)|\($0.imageData?.count ?? 0)" },
+                      leg: s.outgoingLeg.map { .init(id: $0.id, content: LegContent($0)) })
+            })
     }
 
     /// ← / → and the Journey menu: previous or next stop, centred.

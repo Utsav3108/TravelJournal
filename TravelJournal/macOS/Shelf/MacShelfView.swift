@@ -17,6 +17,8 @@ struct MacShelfView: View {
     @State private var selection: UUID?
     @State private var expanded = false
     @State private var showCreate = false
+    /// The create sheet was opened by "New Journey from Photos…", so the new journey opens straight into the import sheet.
+    @State private var createFromPhotos = false
     @State private var pendingDelete: Journey?
     @State private var renaming: Journey?
     @State private var renameText = ""
@@ -62,9 +64,12 @@ struct MacShelfView: View {
         #if DEBUG
         .task { debugLaunchArguments() }
         #endif
-        .sheet(isPresented: $showCreate) {
-            CreateJourneyView { journey in open(journey) }
-                .preferredColorScheme(.light)
+        .sheet(isPresented: $showCreate, onDismiss: { createFromPhotos = false }) {
+            CreateJourneyView { journey in
+                if createFromPhotos { newJourneyRequests?.importOnOpen.insert(journey.id) }
+                open(journey)
+            }
+            .preferredColorScheme(.light)
         }
         .confirmationDialog(
             "Delete this story?",
@@ -219,6 +224,8 @@ struct MacShelfView: View {
     private func consumeNewJourneyRequest() {
         guard let requests = newJourneyRequests, requests.pending else { return }
         requests.pending = false
+        createFromPhotos = requests.fromPhotos
+        requests.fromPhotos = false
         showCreate = true
     }
 

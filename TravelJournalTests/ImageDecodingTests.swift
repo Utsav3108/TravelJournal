@@ -234,7 +234,8 @@ struct ImageDecodingTests {
         let allowed: Set<String> = ["iOS/Features/Capture/CameraCaptureView.swift", "Shared/Story/Map/MapKitImageEdge.swift",
                                     "Shared/App/StoreFailureView.swift", // macOS Quit button: SwiftUI has no way to terminate the app
                                     "macOS/Journey/WheelScrollBridge.swift",   // mouse wheel to horizontal scroll: no SwiftUI equivalent
-                                    "macOS/Journey/TextInputFocus.swift"]      // is a text field being edited: no SwiftUI equivalent
+                                    "macOS/Journey/TextInputFocus.swift",      // is a text field being edited: no SwiftUI equivalent
+                                    "macOS/Export/PrintBridge.swift"]          // the system print dialog: SwiftUI has no print API
         let banned = ["import UIKit", "import AppKit", "UIImage", "UIColor", "UIFont", "UIGraphics", "UIApplication", "UIViewController",
                       "UIActivity", "UIScreen", "UIWindow", "NSImage", "NSColor", "NSFont", "Image(uiImage:", "Image(nsImage:"]
         var offenders: [String] = []

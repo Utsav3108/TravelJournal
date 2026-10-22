@@ -1,6 +1,5 @@
 import XCTest
 import SwiftUI
-import UIKit
 @testable import TravelJournal
 
 @MainActor
@@ -159,10 +158,10 @@ final class StoryPagesTests: XCTestCase {
     }
 
     private func writeJPEG(_ url: URL, side: CGFloat) throws {
-        let img = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { ctx in
-            UIColor.orange.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: side, height: side))
-        }
-        try img.jpegData(compressionQuality: 0.8)!.write(to: url)
+        let img = try XCTUnwrap(ImageDrawing.render(size: CGSize(width: side, height: side), opaque: true) { ctx in
+            ctx.setFillColor(ImageDrawing.color(red: 1, green: 0.5, blue: 0)); ctx.fill(CGRect(x: 0, y: 0, width: side, height: side))
+        })
+        try XCTUnwrap(ImageDrawing.jpegData(img, quality: 0.8)).write(to: url)
     }
 
     func testImageProviderFallbacksAndCache() throws {
@@ -173,10 +172,10 @@ final class StoryPagesTests: XCTestCase {
         let provider = FileStoryImageProvider(store: store)
 
         let both = StoryPhoto(id: "1", relativePath: "Photos/full.jpg", thumbPath: "Photos/thumbs/thumb.jpg", isHero: true)
-        let thumbPx = CGFloat(provider.image(for: both, preferThumbnail: true)!.cgImage!.width)
-        let fullPx = CGFloat(provider.image(for: both, preferThumbnail: false)!.cgImage!.width)
-        XCTAssertEqual(thumbPx, 300, accuracy: 1, "interactive mode prefers the thumbnail")
-        XCTAssertEqual(fullPx, 1200, accuracy: 1, "print mode uses the display file")
+        let thumbPx = CGFloat(provider.image(for: both, preferThumbnail: true)!.width)
+        let fullPx = CGFloat(provider.image(for: both, preferThumbnail: false)!.width)
+        XCTAssertEqual(thumbPx, 100, accuracy: 1, "interactive mode prefers the thumbnail")
+        XCTAssertEqual(fullPx, 400, accuracy: 1, "print mode uses the display file")
 
         // cache: repeated loads do not decode again
         let before = provider.loadCount
@@ -204,25 +203,23 @@ final class StoryPagesTests: XCTestCase {
 
     // MARK: Rendering
 
-    private func render(_ page: StoryPage, metrics: PageMetrics, provider: StoryImageProvider = PlaceholderImageProvider()) -> UIImage? {
+    private func render(_ page: StoryPage, metrics: PageMetrics, provider: StoryImageProvider = PlaceholderImageProvider()) -> CGImage? {
         let view = StoryPageView(page: page, metrics: metrics).environment(\.storyImageProvider, provider)
-        let r = ImageRenderer(content: view)
-        r.scale = 1
-        return r.uiImage
+        return TestImages.render(view, scale: 1)
     }
 
-    private func save(_ img: UIImage?, _ name: String) {
-        guard FileManager.default.fileExists(atPath: Self.renderDir), let data = img?.pngData() else { return }
-        try? data.write(to: URL(fileURLWithPath: Self.renderDir).appendingPathComponent(name + ".png"))
+    private func save(_ img: CGImage?, _ name: String) {
+        guard FileManager.default.fileExists(atPath: Self.renderDir) else { return }
+        TestImages.writePNG(img, to: URL(fileURLWithPath: Self.renderDir).appendingPathComponent(name + ".png"))
     }
 
     func testEveryPageTypeRendersAtA4() {
         for (label, page) in StoryPageSamples.all {
             let img = render(page, metrics: a4)
             XCTAssertNotNil(img, label)
-            XCTAssertEqual(img?.size.width ?? 0, 595, accuracy: 0.5, label)
-            XCTAssertEqual(img?.size.height ?? 0, 842, accuracy: 0.5, label)
-            XCTAssertGreaterThan(img?.pngData()?.count ?? 0, 5_000, "\(label) rendered blank")
+            XCTAssertEqual(CGFloat(img?.width ?? 0), 595, accuracy: 0.5, label)
+            XCTAssertEqual(CGFloat(img?.height ?? 0), 842, accuracy: 0.5, label)
+            XCTAssertGreaterThan(img.flatMap { ImageDrawing.pngData($0) }?.count ?? 0, 5_000, "\(label) rendered blank")
             save(img, "a4-" + label.lowercased().replacingOccurrences(of: " ", with: "-").replacingOccurrences(of: ",", with: "").replacingOccurrences(of: "(", with: "").replacingOccurrences(of: ")", with: ""))
         }
     }
@@ -231,8 +228,8 @@ final class StoryPagesTests: XCTestCase {
         for t in [StopTemplate.t0, .t1, .t2, .t3, .t4] {
             let page = StoryPage.stop(StoryPageSamples.stop(t, story: StoryPageSamples.story100, seal: t == .t2))
             let img = render(page, metrics: phonePrint)
-            XCTAssertGreaterThanOrEqual(img?.size.height ?? 0, 844, "T\(t.rawValue)")
-            XCTAssertEqual(img?.size.width ?? 0, 390, accuracy: 0.5)
+            XCTAssertGreaterThanOrEqual(CGFloat(img?.height ?? 0), 844, "T\(t.rawValue)")
+            XCTAssertEqual(CGFloat(img?.width ?? 0), 390, accuracy: 0.5)
             save(img, "phone-stop-t\(t.rawValue)")
         }
         save(render(.cover(StoryPageSamples.cover), metrics: phonePrint), "phone-cover")

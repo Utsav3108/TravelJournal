@@ -1,7 +1,6 @@
 import XCTest
 import SwiftData
 import PDFKit
-import UIKit
 @testable import TravelJournal
 
 @MainActor
@@ -36,23 +35,21 @@ final class StoryExportTests: XCTestCase {
     /// Photo-like JPEG at the app's stored display size (2400 px long edge): gradient plus shapes plus grain.
     private func jpeg(seed: Int, size: CGSize = CGSize(width: 2400, height: 1800)) -> Data {
         var rng = SystemRandomNumberGenerator()
-        let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1; fmt.opaque = true
-        let img = UIGraphicsImageRenderer(size: size, format: fmt).image { r in
-            let c = r.cgContext
-            let cs = CGColorSpaceCreateDeviceRGB()
-            let hue = CGFloat(seed % 7) / 7
-            let g = CGGradient(colorsSpace: cs, colors: [UIColor(hue: hue, saturation: 0.5, brightness: 0.9, alpha: 1).cgColor,
-                                                         UIColor(hue: hue + 0.1, saturation: 0.7, brightness: 0.4, alpha: 1).cgColor] as CFArray,
+        let img = ImageDrawing.render(size: size, opaque: true) { c in
+            let hue = Double(seed % 7) / 7
+            let g = CGGradient(colorsSpace: ImageDrawing.sRGB,
+                               colors: [ImageDrawing.color(hue: hue, saturation: 0.5, brightness: 0.9),
+                                        ImageDrawing.color(hue: hue + 0.1, saturation: 0.7, brightness: 0.4)] as CFArray,
                                locations: [0, 1])!
             c.drawLinearGradient(g, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
             for _ in 0..<1500 {
-                c.setFillColor(UIColor(hue: .random(in: 0...1, using: &rng), saturation: 0.6, brightness: .random(in: 0.3...1, using: &rng),
-                                       alpha: 0.5).cgColor)
+                c.setFillColor(ImageDrawing.color(hue: .random(in: 0...1, using: &rng), saturation: 0.6,
+                                                  brightness: .random(in: 0.3...1, using: &rng), alpha: 0.5))
                 c.fillEllipse(in: CGRect(x: .random(in: 0...size.width, using: &rng), y: .random(in: 0...size.height, using: &rng),
                                          width: .random(in: 4...60, using: &rng), height: .random(in: 4...60, using: &rng)))
             }
-        }
-        return img.jpegData(compressionQuality: 0.85)!
+        }!
+        return ImageDrawing.jpegData(img, quality: 0.85)!
     }
 
     /// Replaces "sample:" photo paths with real JPEG files in the temp store.
@@ -78,8 +75,8 @@ final class StoryExportTests: XCTestCase {
     private func writePNGs(_ doc: PDFDocument, prefix: String) {
         for i in 0..<doc.pageCount {
             guard let page = doc.page(at: i) else { continue }
-            let img = page.thumbnail(of: CGSize(width: 1190, height: 1684), for: .mediaBox)
-            try? img.pngData()?.write(to: URL(fileURLWithPath: "\(Self.scratch)/\(prefix)-page\(i + 1).png"))
+            let img = TestImages.image(of: page, size: CGSize(width: 1190, height: 1684))
+            TestImages.writePNG(img, to: URL(fileURLWithPath: "\(Self.scratch)/\(prefix)-page\(i + 1).png"))
         }
     }
 

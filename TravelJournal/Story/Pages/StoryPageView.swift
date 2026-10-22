@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 /// Interaction hooks. All nil in print mode (the pager view supplies them in interactive mode).
 struct StoryPageCallbacks {
@@ -68,9 +67,17 @@ extension View {
 struct StoryPhotoLoader {
     var provider: StoryImageProvider
     var interactive: Bool
+    /// From `@Environment(\.displayScale)`: decode size and `Image` scale both use it, so photos are neither soft nor oversized.
+    var displayScale: CGFloat = 1
 
-    func image(_ photo: StoryPhoto?) -> Image? {
-        guard let photo, let ui = provider.image(for: photo, preferThumbnail: interactive) else { return nil }
-        return Image(uiImage: ui)
+    /// `points` is the on-page width the photo will be drawn at; interactive pages decode only what that needs.
+    /// Print mode (PDF) always asks for print resolution. `label` is what VoiceOver reads for the photo.
+    func image(_ photo: StoryPhoto?, label: String = "Photo", points: CGFloat? = nil) -> Image? {
+        guard let photo else { return nil }
+        let maxPixel = interactive && points != nil
+            ? ImageDecoding.maxPixel(forPoints: points!, scale: displayScale)
+            : FileStoryImageProvider.printMaxPixel
+        guard let cg = provider.image(for: photo, preferThumbnail: interactive, maxPixel: maxPixel) else { return nil }
+        return Image(photo: cg, scale: displayScale, label: label.isEmpty ? "Photo" : label)
     }
 }

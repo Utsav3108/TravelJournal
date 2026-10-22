@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 /// Single export + share flow. The nav-bar button and the closing page's "Save as PDF" stamp both call `start()`.
 @Observable
@@ -72,7 +71,8 @@ private struct PDFExportPresentations: ViewModifier {
                     .interactiveDismissDisabled()
             }
             .sheet(item: $model.shareItem) { item in
-                ActivityView(url: item.url).presentationDetents([.medium, .large])
+                ShareReadyView(url: item.url) { model.shareItem = nil }
+                    .presentationDetents([.height(260), .medium])
             }
             .alert("Couldn't export PDF", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
                 Button("OK", role: .cancel) {}
@@ -105,10 +105,23 @@ private struct ExportProgressView: View {
     }
 }
 
-private struct ActivityView: UIViewControllerRepresentable {
+/// Shown when the PDF is ready. `ShareLink` replaces the UIKit activity sheet; it needs one tap, so the sheet offers it.
+private struct ShareReadyView: View {
     let url: URL
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    let done: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Your PDF is ready").font(.headline)
+            Text(url.deletingPathExtension().lastPathComponent)
+                .font(.subheadline).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.center)
+            ShareLink(item: url) {
+                Label("Share PDF", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent).controlSize(.large)
+            .accessibilityIdentifier("sharePDF")
+            Button("Done", action: done).accessibilityIdentifier("shareDone")
+        }
+        .padding(24)
     }
-    func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
 }

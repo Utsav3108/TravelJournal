@@ -1,22 +1,21 @@
 import SwiftUI
-import UIKit
 
 /// Paper "illustrated" map used when the snapshot fails, we are offline, or no stop has coordinates.
 /// Hand-drawn style contour lines; the dashed route is drawn by the page overlay, not here.
 enum IllustratedMapFallback {
-    static func render(size: CGSize, seed: String, scale: CGFloat = 2) -> UIImage {
-        let fmt = UIGraphicsImageRendererFormat()
-        fmt.scale = scale
-        fmt.opaque = true
-        return UIGraphicsImageRenderer(size: size, format: fmt).image { r in
-            let c = r.cgContext
-            UIColor(red: 0xE9 / 255, green: 0xDD / 255, blue: 0xC6 / 255, alpha: 1).setFill()
+    /// Pixels per point of the rendered bitmap; callers pass the same value to `Image(..., scale:)`.
+    static let defaultScale: CGFloat = 2
+
+    /// Pixel size is `size x scale`.
+    static func render(size: CGSize, seed: String, scale: CGFloat = defaultScale) -> CGImage {
+        let image = ImageDrawing.render(size: size, scale: scale, opaque: true) { c in
+            c.setFillColor(ImageDrawing.color(red: 0xE9 / 255, green: 0xDD / 255, blue: 0xC6 / 255))
             c.fill(CGRect(origin: .zero, size: size))
             var s = SeededStream(seed, "contours")
-            let ink = UIColor(red: 0x8B / 255, green: 0x6B / 255, blue: 0x4A / 255, alpha: 1)
+            func ink(_ alpha: Double) -> CGColor { ImageDrawing.color(red: 0x8B / 255, green: 0x6B / 255, blue: 0x4A / 255, alpha: alpha) }
             c.setLineJoin(.round); c.setLineCap(.round)
             // Faint graph-paper grid.
-            c.setStrokeColor(ink.withAlphaComponent(0.10).cgColor); c.setLineWidth(0.5)
+            c.setStrokeColor(ink(0.10)); c.setLineWidth(0.5)
             var x: CGFloat = 0
             while x < size.width { c.move(to: CGPoint(x: x, y: 0)); c.addLine(to: CGPoint(x: x, y: size.height)); x += 28 }
             var y: CGFloat = 0
@@ -30,7 +29,7 @@ enum IllustratedMapFallback {
                 var rad = base
                 for k in 0..<rings {
                     rad += CGFloat(s.range(14, 20))
-                    c.setStrokeColor(ink.withAlphaComponent(k % 3 == 0 ? 0.42 : 0.26).cgColor)
+                    c.setStrokeColor(ink(k % 3 == 0 ? 0.42 : 0.26))
                     c.setLineWidth(k % 3 == 0 ? 1.1 : 0.7)
                     let steps = 72
                     for i in 0...steps {
@@ -43,7 +42,7 @@ enum IllustratedMapFallback {
                 }
             }
             // A wavy river.
-            c.setStrokeColor(UIColor(red: 0x3E / 255, green: 0x6B / 255, blue: 0x6A / 255, alpha: 0.28).cgColor)
+            c.setStrokeColor(ImageDrawing.color(red: 0x3E / 255, green: 0x6B / 255, blue: 0x6A / 255, alpha: 0.28))
             c.setLineWidth(5)
             let ry = CGFloat(s.range(0.25, 0.75)) * size.height
             let amp = CGFloat(s.range(10, 22)), ph = s.range(0, 6)
@@ -55,6 +54,8 @@ enum IllustratedMapFallback {
             }
             c.strokePath()
         }
+        // A 1x1 sRGB bitmap only if the context could not be created (never in practice).
+        return image ?? ImageDrawing.render(size: CGSize(width: 1, height: 1))!
     }
 }
 
@@ -63,7 +64,7 @@ struct IllustratedMapFallbackView: View {
     var size: CGSize
     var seed: String = "fallback"
     var body: some View {
-        Image(uiImage: IllustratedMapFallback.render(size: size, seed: seed))
+        Image(texture: IllustratedMapFallback.render(size: size, seed: seed), scale: IllustratedMapFallback.defaultScale)
             .resizable()
             .frame(width: size.width, height: size.height)
             .accessibilityHidden(true)

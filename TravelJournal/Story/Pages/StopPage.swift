@@ -8,6 +8,7 @@ struct StopPage: View {
     var entryY: CGFloat?
 
     @Environment(\.storyImageProvider) private var provider
+    @Environment(\.displayScale) private var displayScale
 
     private var interactive: Bool { metrics.mode == .interactive }
 
@@ -27,7 +28,7 @@ struct StopPage: View {
 
     // swiftlint:disable:next function_body_length
     private func canvas(_ L: StopLayout) -> some View {
-        let loader = StoryPhotoLoader(provider: provider, interactive: interactive)
+        let loader = StoryPhotoLoader(provider: provider, interactive: interactive, displayScale: displayScale)
         let id = model.stopID
         let photos = Array(model.photos.prefix(4))
         return ZStack(alignment: .topLeading) {
@@ -37,7 +38,7 @@ struct StopPage: View {
 
             // 2. Photos.
             if let hero = L.hero, let p = photos.first {
-                Polaroid(photo: loader.image(p), caption: model.name, width: hero.width, seed: "\(id)/hero")
+                Polaroid(photo: loader.image(p, label: model.name.isEmpty ? "Photo" : model.name, points: hero.width), caption: model.name, width: hero.width, seed: "\(id)/hero")
                     .placed(hero)
                     .photoTap(p, callbacks: callbacks, interactive: interactive)
             }
@@ -46,7 +47,7 @@ struct StopPage: View {
                 if idx < photos.count {
                     let p = photos[idx]
                     let tapes = L.photoCount == 2 ? 2 : (L.photoCount == 3 && i == 0 ? 2 : 1)
-                    TapedPhoto(photo: loader.image(p), size: CGSize(width: rect.width - 8, height: rect.height - 8),
+                    TapedPhoto(photo: loader.image(p, points: rect.width), size: CGSize(width: rect.width - 8, height: rect.height - 8),
                                tapes: tapes, seed: "\(id)/photo/\(p.id)")
                         .placed(rect)
                         .photoTap(p, callbacks: callbacks, interactive: interactive)

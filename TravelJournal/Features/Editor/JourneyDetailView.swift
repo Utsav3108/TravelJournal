@@ -71,11 +71,11 @@ struct JourneyDetailContent: View {
                 Text("Stops").stampLabel(12).foregroundStyle(KraftColor.inkSoft)
             }
         }
-        .listStyle(.insetGrouped)
+        .groupedListStyle()
         .calmForm()
         .environment(\.editMode, $editMode)
         .navigationTitle(journey.title.isEmpty ? "Story" : journey.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 NavigationLink(value: AppRoute.story(journey.persistentModelID)) {

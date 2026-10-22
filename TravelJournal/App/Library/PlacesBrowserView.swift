@@ -19,7 +19,7 @@ struct PlacesBrowserView: View {
             }
             .background(KraftColor.paper.ignoresSafeArea())
             .navigationTitle("Places")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -90,7 +90,7 @@ private struct CityListView: View {
         .scrollContentBackground(.hidden)
         .background(KraftColor.paper.ignoresSafeArea())
         .navigationTitle(country.name)
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
     }
 }
 
@@ -135,7 +135,7 @@ private struct PlacesPreviewHost: View {
             PlacesCountryList(countries: countries, onSelect: { _ in })
                 .background(KraftColor.paper)
                 .navigationTitle("Places")
-                .navigationBarTitleDisplayMode(.inline)
+                .inlineNavigationTitle()
         }
         .tint(KraftColor.route)
     }

@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
@@ -137,37 +136,30 @@ final class PDFImageProvider: StoryImageProvider {
     static let quality: CGFloat = 0.8
 
     private let store: PhotoStoring
-    private var cache: [String: UIImage] = [:]
+    private let cache = DecodedImageCache()
 
     init(store: PhotoStoring) { self.store = store }
 
-    nonisolated func image(for photo: StoryPhoto, preferThumbnail: Bool) -> UIImage? {
+    /// Print always uses the full print resolution, whatever the caller asked for.
+    nonisolated func image(for photo: StoryPhoto, preferThumbnail: Bool, maxPixel: Int) -> CGImage? {
         MainActor.assumeIsolated { lookup(photo) }
     }
 
-    private func lookup(_ photo: StoryPhoto) -> UIImage? {
+    private func lookup(_ photo: StoryPhoto) -> CGImage? {
         for path in [photo.relativePath, photo.thumbPath ?? ""] where FileStoryImageProvider.isLoadable(path) {
-            if let hit = cache[path] { return hit }
-            if let img = load(path) { cache[path] = img; return img }
+            if let hit = cache.image(forKey: path) { return hit }
+            if let img = load(path) { cache.insert(img, forKey: path); return img }
         }
         return nil
     }
 
-    private func load(_ path: String) -> UIImage? {
-        let url = store.url(for: path)
-        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
-        let opts: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: Self.maxPixel,
-        ]
-        guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else { return nil }
-        let data = NSMutableData()
-        guard let dest = CGImageDestinationCreateWithData(data, UTType.jpeg.identifier as CFString, 1, nil) else { return UIImage(cgImage: cg) }
-        CGImageDestinationAddImage(dest, cg, [kCGImageDestinationLossyCompressionQuality: Self.quality] as CFDictionary)
-        guard CGImageDestinationFinalize(dest),
-              let jsrc = CGImageSourceCreateWithData(data, nil),
-              let jpegBacked = CGImageSourceCreateImageAtIndex(jsrc, 0, nil) else { return UIImage(cgImage: cg) }
-        return UIImage(cgImage: jpegBacked)
+    /// Downsample, JPEG-encode, decode the JPEG back. The encode keeps the source colour space (Display P3 stays P3),
+    /// so the DCT data embedded in the PDF carries the same profile as the photo.
+    private func load(_ path: String) -> CGImage? {
+        guard let cg = ImageDecoding.cgImage(at: store.url(for: path), maxPixel: Self.maxPixel) else { return nil }
+        guard let data = ImageDrawing.jpegData(cg, quality: Self.quality),
+              let jsrc = CGImageSourceCreateWithData(data as CFData, nil),
+              let jpegBacked = CGImageSourceCreateImageAtIndex(jsrc, 0, nil) else { return cg }
+        return jpegBacked
     }
 }

@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import UIKit
 
 struct StoryViewerView: View {
     let journeyID: PersistentIdentifier
@@ -34,11 +33,8 @@ struct StoryViewerContent: View {
         _export = State(initialValue: StoryPDFExportModel(journey: journey))
     }
 
-    /// Constant status-bar height, so pages never move when the navigation bar hides or shows.
-    private var topInset: CGFloat {
-        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-        return scene?.keyWindow?.safeAreaInsets.top ?? 0
-    }
+    /// Constant status-bar height (measured above the navigation stack), so pages never move when the navigation bar hides or shows.
+    @Environment(\.statusBarInset) private var topInset
 
     var body: some View {
         let barVisible = StoryViewerLogic.barVisible(pageIndex: currentIndex, tempReveal: tempReveal)
@@ -77,7 +73,7 @@ struct StoryViewerContent: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("storyViewer")
         .navigationTitle(journey.title.isEmpty ? "Story" : journey.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .toolbar {
             ToolbarItem(placement: .primaryAction) { StoryPDFExportButton(model: export) }
             ToolbarItem(placement: .secondaryAction) {
@@ -90,7 +86,7 @@ struct StoryViewerContent: View {
             LegCardView(leg: leg)
                 .presentationDetents([.height(340), .medium])
         }
-        .fullScreenCover(item: $photo) { p in
+        .platformFullScreenCover(item: $photo) { p in
             FullScreenPhotoView(photo: p, provider: imageProvider) { photo = nil }
         }
         .navigationDestination(item: $editTarget) { id in
@@ -224,6 +220,7 @@ struct FullScreenPhotoView: View {
     @State private var offset: CGSize = .zero
     @State private var baseOffset: CGSize = .zero
     @State private var dragDown: CGFloat = 0
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -248,8 +245,9 @@ struct FullScreenPhotoView: View {
     }
 
     @ViewBuilder private var content: some View {
-        if let ui = provider.image(for: photo, preferThumbnail: false) {
-            Image(uiImage: ui).resizable().scaledToFit().accessibilityLabel("Photo")
+        if let cg = provider.image(for: photo, preferThumbnail: false,
+                                   maxPixel: ImageDecoding.maxPixel(forPoints: 1000, scale: displayScale)) {
+            Image(photo: cg, scale: displayScale, label: "Photo").resizable().scaledToFit()
         } else {
             KraftPhotoPlaceholder().aspectRatio(4.0 / 3.0, contentMode: .fit).padding(.horizontal, 12)
                 .accessibilityLabel("Photo placeholder")

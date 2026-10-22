@@ -57,7 +57,7 @@ struct RouteOverviewPage: View {
             Rectangle().fill(KraftColor.polaroidWhite)
                 .shadow(color: KraftColor.shadow, radius: 4, y: 2)
             ZStack {
-                Image(uiImage: snap.image).resizable().frame(width: size.width, height: size.height)
+                Image(texture: snap.image, scale: snap.scale).resizable().frame(width: size.width, height: size.height)   // illustration; the pins and rows carry the information
                 routeOverlay(snap: snap, size: size)
                 if isLoading {
                     ProgressView().tint(KraftColor.kraftDark)

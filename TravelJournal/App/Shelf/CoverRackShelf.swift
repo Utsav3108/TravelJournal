@@ -189,9 +189,11 @@ private struct CoverRackBook: View {
     let height: CGFloat
     let lifted: Bool
 
-    private var coverImage: UIImage? {
-        guard let path = journey.coverThumbPath ?? journey.coverPhotoPath, !path.hasPrefix("sample:") else { return nil }
-        return UIImage(contentsOfFile: FilePhotoStore().url(for: path).path)
+    @Environment(\.displayScale) private var displayScale
+
+    private var coverImage: CGImage? {
+        StoredPhotos.image(path: journey.coverThumbPath ?? journey.coverPhotoPath,
+                           maxPixel: ImageDecoding.maxPixel(forPoints: max(width, height), scale: displayScale))
     }
 
     private var cloth: Color {
@@ -266,7 +268,7 @@ private struct CoverRackBook: View {
     private var cover: some View {
         if let img = coverImage {
             Color.clear
-                .overlay(Image(uiImage: img).resizable().scaledToFill())
+                .overlay(Image(texture: img, scale: displayScale).resizable().scaledToFill())
                 .clipped()
                 .overlay(LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .center, endPoint: .bottom))
                 .overlay(alignment: .bottom) {

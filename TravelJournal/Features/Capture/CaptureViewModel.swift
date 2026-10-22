@@ -1,7 +1,6 @@
 import Foundation
 import Observation
 import SwiftData
-import UIKit
 import ImageIO
 
 /// One editable suggested stop in the review step.
@@ -49,7 +48,7 @@ final class CaptureViewModel {
     @ObservationIgnored private var lookupTask: Task<Void, Never>?
     @ObservationIgnored private var lookupCalls = 0
     @ObservationIgnored private var cache: [String: PlaceCandidate?] = [:]
-    @ObservationIgnored private var thumbs: [String: UIImage] = [:]
+    @ObservationIgnored private let thumbs = DecodedImageCache(costLimit: 16 << 20)
 
     init(importer: PhotoImporting, lookup: PlaceLookup, config: ClusterConfig = ClusterConfig()) {
         self.importer = importer
@@ -276,17 +275,11 @@ final class CaptureViewModel {
 
     // MARK: Thumbnails
 
-    func thumbnail(for photo: PhotoMeta) -> UIImage? {
-        if let t = thumbs[photo.id] { return t }
-        guard let src = CGImageSourceCreateWithData(photo.jpegData as CFData, nil) else { return nil }
-        let opts: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: 240,
-        ]
-        guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else { return nil }
-        let img = UIImage(cgImage: cg)
-        thumbs[photo.id] = img
-        return img
+    /// Upright thumbnail (EXIF rotation baked in), at most 240 px: enough for the largest 72 pt tile at 3x.
+    func thumbnail(for photo: PhotoMeta) -> CGImage? {
+        if let t = thumbs.image(forKey: photo.id) { return t }
+        guard let cg = ImageDecoding.cgImage(from: photo.jpegData, maxPixel: 240) else { return nil }
+        thumbs.insert(cg, forKey: photo.id)
+        return cg
     }
 }

@@ -27,7 +27,7 @@ struct StopEditorView: View {
         StopForm(stop: draft, journey: journey, costText: $costText, minutesText: $minutesText,
                  showPlaceSearch: $showPlaceSearch, photoStore: photoStore, canEditPhotos: !isNew)
             .navigationTitle(isNew ? "New stop" : (draft.placeName.isEmpty ? "Stop" : draft.placeName))
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
                 if isNew {
                     ToolbarItem(placement: .confirmationAction) {
@@ -148,7 +148,7 @@ private struct StopForm: View {
             HStack {
                 Text("Time spent")
                 TextField("min", text: $minutesText)
-                    .keyboardType(.numberPad).multilineTextAlignment(.trailing)
+                    .numberKeyboard().multilineTextAlignment(.trailing)
                     .onChange(of: minutesText) { _, v in stop.timeSpentMinutes = EditorLogic.parseMinutes(v) }
                 Text("min").foregroundStyle(KraftColor.inkSoft)
                 Stepper("Time spent", value: Binding(
@@ -218,7 +218,7 @@ private struct StopForm: View {
             HStack {
                 Text(EditorLogic.symbol(for: stop.costCurrency ?? EditorLogic.defaultCurrency))
                 TextField("Amount", text: $costText)
-                    .keyboardType(.decimalPad)
+                    .decimalKeyboard()
                     .onChange(of: costText) { _, v in
                         let a = EditorLogic.parseAmount(v)
                         stop.costAmount = a
@@ -289,11 +289,12 @@ private struct PhotoTile: View {
     let photo: StopPhoto
     let store: any PhotoStoring
     let isHero: Bool
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             if let img = image {
-                Image(uiImage: img).resizable().scaledToFill()
+                Image(photo: img, scale: displayScale, label: isHero ? "Hero photo" : "Photo").resizable().scaledToFill()
             } else {
                 KraftColor.paperDeep
                     .overlay(Image(systemName: "photo").foregroundStyle(KraftColor.kraftDark))
@@ -314,9 +315,8 @@ private struct PhotoTile: View {
         .accessibilityLabel(isHero ? "Hero photo" : "Photo")
     }
 
-    private var image: UIImage? {
-        guard !photo.thumbRelativePath.isEmpty, !photo.thumbRelativePath.hasPrefix("sample:") else { return nil }
-        return UIImage(contentsOfFile: store.url(for: photo.thumbRelativePath).path)
+    private var image: CGImage? {
+        StoredPhotos.image(path: photo.thumbRelativePath, maxPixel: ImageDecoding.maxPixel(forPoints: 160, scale: displayScale), store: store)
     }
 }
 
@@ -349,7 +349,7 @@ struct PlaceSearchSheet: View {
             }
             .calmForm()
             .navigationTitle("Find this place")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always))
             .onSubmit(of: .search) { Task { await run() } }
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }

@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 // MARK: NoteCard
 
@@ -223,8 +222,7 @@ struct ArcText: View {
     private var box: CGFloat { 2 * (radius + fontSize + 4) }
 
     private func glyphWidth(_ c: Character) -> CGFloat {
-        let f = UIFont(name: KraftFontName.elite, size: fontSize) ?? UIFont.systemFont(ofSize: fontSize)
-        return (String(c) as NSString).size(withAttributes: [.font: f]).width
+        PageText.advance(String(c), fontName: KraftFontName.elite, size: fontSize)
     }
 }
 

@@ -1,35 +1,43 @@
 import SwiftUI
-import UIKit
-import ImageIO
 
 /// Supplies decoded photos to story pages. Synchronous on purpose: `ImageRenderer` (PDF export) cannot wait for async loads.
 /// Returning nil means "draw `KraftPhotoPlaceholder`" (sample photos, missing or unreadable files).
+/// Images are upright `CGImage`s (EXIF rotation baked in by `ImageDecoding`); show them with `.up` orientation.
 protocol StoryImageProvider {
-    func image(for photo: StoryPhoto, preferThumbnail: Bool) -> UIImage?
+    /// `maxPixel` is the longest side the caller can use (points x display scale); providers may return less, never more.
+    func image(for photo: StoryPhoto, preferThumbnail: Bool, maxPixel: Int) -> CGImage?
 }
 
-/// Default provider: reads from a `FilePhotoStore`, caches decoded images in an `NSCache`.
+extension StoryImageProvider {
+    /// Full-size request (print resolution).
+    func image(for photo: StoryPhoto, preferThumbnail: Bool) -> CGImage? {
+        image(for: photo, preferThumbnail: preferThumbnail, maxPixel: FileStoryImageProvider.printMaxPixel)
+    }
+}
+
+/// Default provider: reads from a `FilePhotoStore`, caches decoded images in a cost-limited `DecodedImageCache`.
 /// Thumbnails are preferred in interactive mode and fall back to the display file; print mode uses the display file
 /// (downsampled to `printMaxPixel` so the PDF stays small) and falls back to the thumbnail.
 final class FileStoryImageProvider: StoryImageProvider {
     static let printMaxPixel = 1600
 
     private let store: PhotoStoring
-    private let cache = NSCache<NSString, UIImage>()
+    private let cache: DecodedImageCache
     private(set) var loadCount = 0
 
-    init(store: PhotoStoring = FilePhotoStore(), cacheLimit: Int = 60) {
+    init(store: PhotoStoring = FilePhotoStore(), cacheCostLimit: Int = DecodedImageCache.defaultCostLimit) {
         self.store = store
-        cache.countLimit = cacheLimit
+        cache = DecodedImageCache(costLimit: cacheCostLimit)
     }
 
-    func image(for photo: StoryPhoto, preferThumbnail: Bool) -> UIImage? {
+    func image(for photo: StoryPhoto, preferThumbnail: Bool, maxPixel: Int) -> CGImage? {
+        let limit = min(max(maxPixel, 1), Self.printMaxPixel)
         let candidates: [String?] = preferThumbnail ? [photo.thumbPath, photo.relativePath] : [photo.relativePath, photo.thumbPath]
         for case let path? in candidates where Self.isLoadable(path) {
-            let key = path as NSString
-            if let hit = cache.object(forKey: key) { return hit }
-            if let img = load(path) {
-                cache.setObject(img, forKey: key)
+            let key = "\(path)@\(limit)"
+            if let hit = cache.image(forKey: key) { return hit }
+            if let img = load(path, maxPixel: limit) {
+                cache.insert(img, forKey: key)
                 return img
             }
         }
@@ -37,27 +45,20 @@ final class FileStoryImageProvider: StoryImageProvider {
     }
 
     /// "sample:" paths and empty strings never have files.
-    nonisolated static func isLoadable(_ path: String) -> Bool { !path.isEmpty && !path.hasPrefix("sample:") }
+    nonisolated static func isLoadable(_ path: String) -> Bool { StoredPhotos.isLoadable(path) }
 
-    private func load(_ path: String) -> UIImage? {
+    private func load(_ path: String, maxPixel: Int) -> CGImage? {
         let url = store.url(for: path)
         guard FileManager.default.fileExists(atPath: url.path),
-              let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
-        let opts: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: Self.printMaxPixel,
-            kCGImageSourceShouldCacheImmediately: true,
-        ]
-        guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else { return nil }
+              let cg = ImageDecoding.cgImage(at: url, maxPixel: maxPixel) else { return nil }
         loadCount += 1
-        return UIImage(cgImage: cg)
+        return cg
     }
 }
 
 /// Always returns nil: every photo draws a placeholder (previews, tests).
 struct PlaceholderImageProvider: StoryImageProvider {
-    func image(for photo: StoryPhoto, preferThumbnail: Bool) -> UIImage? { nil }
+    func image(for photo: StoryPhoto, preferThumbnail: Bool, maxPixel: Int) -> CGImage? { nil }
 }
 
 private struct StoryImageProviderKey: EnvironmentKey {

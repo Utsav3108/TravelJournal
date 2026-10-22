@@ -73,7 +73,7 @@ struct WashiTape: View {
     @ViewBuilder private var pattern: some View {
         switch variant {
         case .kraft:
-            Image(uiImage: PaperGrain.tile).resizable(resizingMode: .tile).opacity(0.8)
+            PaperGrainTexture().opacity(0.8)
         case .pinkGrid:
             Canvas { ctx, sz in
                 var p = Path()

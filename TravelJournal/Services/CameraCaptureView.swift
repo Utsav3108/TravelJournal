@@ -1,7 +1,19 @@
 import SwiftUI
-import UIKit
 import CoreLocation
 import UniformTypeIdentifiers
+#if os(iOS)
+import UIKit   // the one place UIKit stays: SwiftUI has no camera view
+#endif
+
+#if !os(iOS)
+/// Capture is iPhone-only; other platforms never show the camera button.
+struct CameraCaptureView: View {
+    var onCapture: (PhotoMeta) -> Void
+    var onCancel: () -> Void = {}
+    static var isCameraAvailable: Bool { false }
+    var body: some View { EmptyView() }
+}
+#else
 
 /// Wraps UIImagePickerController (.camera). Date = now; location only if permission is already granted
 /// (never prompts). On devices without a camera (Simulator) shows a friendly message instead.
@@ -73,3 +85,4 @@ private struct CameraPicker: UIViewControllerRepresentable {
         }
     }
 }
+#endif

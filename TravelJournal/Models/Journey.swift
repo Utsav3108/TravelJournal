@@ -16,8 +16,15 @@ final class Journey {
     var updatedAt: Date = Date()
     var schemaTag: Int = 1
 
-    @Relationship(deleteRule: .cascade, inverse: \Stop.journey)
-    var stops: [Stop] = []
+    /// CloudKit requires to-many relationships to be optional. `originalName` keeps the V2 column ("stops") so the
+    /// migration treats this as a rename, not a new relationship. Use `stops`.
+    @Relationship(deleteRule: .cascade, originalName: "stops", inverse: \Stop.journey)
+    var stopsStorage: [Stop]?
+
+    var stops: [Stop] {
+        get { stopsStorage ?? [] }
+        set { stopsStorage = newValue }
+    }
 
     init(title: String, date: Date = .now, city: String? = nil, country: String? = nil) {
         self.title = title

@@ -9,7 +9,7 @@ struct PhotoMeta: Identifiable, Hashable, Sendable {
     var date: Date?
     var latitude: Double?
     var longitude: Double?
-    /// Downscaled JPEG bytes (<= 2400 px long edge, orientation baked in).
+    /// Downscaled JPEG bytes (<= 2048 px long edge, orientation baked in).
     var jpegData: Data
     var hasLocation: Bool { latitude != nil && longitude != nil }
 }

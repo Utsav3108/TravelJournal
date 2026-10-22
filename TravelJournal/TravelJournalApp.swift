@@ -3,21 +3,27 @@ import SwiftData
 
 @main
 struct TravelJournalApp: App {
-    private let container: ModelContainer
+    @State private var store = StoreLoader(factory: AppContainer.launchFactory())
     private let placeLookup = MapKitPlaceLookup()
 
     init() {
         KraftFonts.register()
-        let uiTest = ProcessInfo.processInfo.arguments.contains("-uitest")
-        container = AppContainer.make(inMemory: uiTest)
     }
 
     var body: some Scene {
         WindowGroup {
-            JourneyShelfView()
-                .preferredColorScheme(.light)
-                .environment(\.servicePlaceLookup, placeLookup)
+            Group {
+                switch store.state {
+                case .ready(let container):
+                    JourneyShelfView()
+                        .environment(\.servicePlaceLookup, placeLookup)
+                        .modelContainer(container)
+                        .task { PhotoCache.warm(context: container.mainContext, store: FilePhotoStore()) }
+                case .failed:
+                    StoreFailureView(onRetry: { store.load() })
+                }
+            }
+            .preferredColorScheme(.light)
         }
-        .modelContainer(container)
     }
 }

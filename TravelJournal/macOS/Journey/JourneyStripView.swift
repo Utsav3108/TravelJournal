@@ -21,8 +21,10 @@ struct JourneyStripView: View {
                 PaperBackground().ignoresSafeArea()
                 ScrollView([.horizontal, .vertical]) {
                     HStack(spacing: 0) {
-                        ForEach(Array(model.items.enumerated()), id: \.element.id) { i, item in
-                            pageView(item, index: i, size: size, pages: pages)
+                        if StripComposer.isMeasured(geo.size) {
+                            ForEach(Array(model.items.enumerated()), id: \.element.id) { i, item in
+                                pageView(item, index: i, size: size, pages: pages)
+                            }
                         }
                     }
                     .frame(minWidth: geo.size.width, minHeight: geo.size.height)   // short strips sit centred

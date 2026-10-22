@@ -239,7 +239,7 @@ struct BookcaseSearchField: View {
             TextField("Search stories", text: $query)
                 .font(.custom(KraftFontName.lora, size: 16, relativeTo: .body))
                 .submitLabel(.search)
-                .textInputAutocapitalization(.never)
+                .neverAutocapitalize()
                 .autocorrectionDisabled()
             if !query.isEmpty {
                 Button { query = "" } label: {

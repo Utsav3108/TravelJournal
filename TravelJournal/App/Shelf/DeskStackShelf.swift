@@ -78,7 +78,8 @@ private struct DeskBook: View {
     let journey: Journey
     let width: CGFloat
     let isSliding: Bool
-    @State private var cover: UIImage?
+    @State private var cover: CGImage?
+    @Environment(\.displayScale) private var displayScale
 
     static func label(for j: Journey) -> String {
         var s = "\(j.title), \(j.date.formatted(date: .long, time: .omitted))"
@@ -114,7 +115,7 @@ private struct DeskBook: View {
         .offset(x: xOffset + (isSliding ? 420 : 0))
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
-        .task(id: journey.id) { cover = Self.loadCover(journey) }
+        .task(id: journey.id) { cover = Self.loadCover(journey, scale: displayScale) }
     }
 
     private func pageEnd(leading: Bool) -> some View {
@@ -157,7 +158,7 @@ private struct DeskBook: View {
             }
             HStack(spacing: 0) {
                 if let cover {
-                    Image(uiImage: cover).resizable().scaledToFill()
+                    Image(texture: cover, scale: displayScale).resizable().scaledToFill()
                         .frame(width: height - 22, height: height - 22).clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 2))
                         .overlay(RoundedRectangle(cornerRadius: 2).stroke(DeskCloth.gold, lineWidth: 0.8))
@@ -191,9 +192,9 @@ private struct DeskBook: View {
             .frame(width: 5)
     }
 
-    private static func loadCover(_ journey: Journey) -> UIImage? {
-        guard let path = journey.coverThumbPath ?? journey.coverPhotoPath, !path.hasPrefix("sample:") else { return nil }
-        return UIImage(contentsOfFile: FilePhotoStore().url(for: path).path)
+    private static func loadCover(_ journey: Journey, scale: CGFloat) -> CGImage? {
+        StoredPhotos.image(path: journey.coverThumbPath ?? journey.coverPhotoPath,
+                           maxPixel: ImageDecoding.maxPixel(forPoints: 64, scale: scale))
     }
 }
 

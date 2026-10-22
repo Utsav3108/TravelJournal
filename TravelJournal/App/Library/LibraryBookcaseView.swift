@@ -210,7 +210,7 @@ private struct BookcasePreviewHost: View {
                                                         openPlaces: {}, requestDelete: { _ in }),
                                 shelfProvider: bookcasePreviewShelves)
                 .navigationTitle("Library")
-                .navigationBarTitleDisplayMode(.inline)
+                .inlineNavigationTitle()
         }
     }
 }

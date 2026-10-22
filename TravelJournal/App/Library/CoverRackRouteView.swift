@@ -16,7 +16,7 @@ struct CoverRackRouteView: View {
             opened = journeys.first { $0.id == story.id }?.persistentModelID
         }
         .navigationTitle(scope.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .navigationDestination(item: $opened) { JourneyDetailView(journeyID: $0) }
     }
 }

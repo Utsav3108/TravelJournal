@@ -40,7 +40,7 @@ struct CreateJourneyView: View {
             .background(KraftColor.paper.ignoresSafeArea())
             .foregroundStyle(KraftColor.ink)
             .navigationTitle("New story")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

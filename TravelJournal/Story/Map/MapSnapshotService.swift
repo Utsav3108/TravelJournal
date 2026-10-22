@@ -2,7 +2,6 @@ import SwiftUI
 import MapKit
 import CoreImage
 import CoreImage.CIFilterBuiltins
-import UIKit
 
 /// Builds the sepia/paper route map. `snapshot(for:size:)` never throws: any failure (offline,
 /// timeout, no coordinates) yields the illustrated fallback, so callers (viewer, PDF exporter) can
@@ -87,7 +86,8 @@ final class MapSnapshotService {
 
     static func fallback(points: [GeoPoint], stopIndices: [Int], size: CGSize) -> MapSnap {
         let seed = MapProjection.cacheKey(points, size: size, scale: 1)
-        return MapSnap(image: IllustratedMapFallback.render(size: size, seed: seed),
+        let scale = IllustratedMapFallback.defaultScale
+        return MapSnap(image: IllustratedMapFallback.render(size: size, seed: seed, scale: scale), scale: scale,
                        pins: MapProjection.fallbackPoints(points, size: size),
                        size: size, stopIndices: stopIndices, isFallback: true)
     }
@@ -104,21 +104,20 @@ final class MapSnapshotService {
         o.mapType = .mutedStandard
         o.showsBuildings = false
         o.pointOfInterestFilter = .excludingAll
-        o.traitCollection = UITraitCollection(userInterfaceStyle: .light)
+        MapKitImageEdge.forceLight(o)
         let snap = try await MKMapSnapshotter(options: o).start()
         let pins = points.map { snap.point(for: CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon)) }
         // Sanity: a blank/throttled snapshot has no usable pixels.
-        guard snap.image.size.width > 1 else { throw CancellationError() }
-        let tinted = paperTint(snap.image)
-        return MapSnap(image: tinted, pins: pins, size: size, stopIndices: stopIndices, isFallback: false)
+        guard let raw = MapKitImageEdge.cgImage(from: snap), CGFloat(raw.width) / scale > 1 else { throw CancellationError() }
+        let tinted = paperTint(raw)
+        return MapSnap(image: tinted, scale: scale, pins: pins, size: size, stopIndices: stopIndices, isFallback: false)
     }
 
     // MARK: Sepia / paper pass
 
     /// kraft monochrome -> multiply paper -> grain -> vignette. Image in, image out.
-    func paperTint(_ image: UIImage) -> UIImage {
-        guard let cg = image.cgImage else { return image }
-        let input = CIImage(cgImage: cg)
+    func paperTint(_ image: CGImage) -> CGImage {
+        let input = CIImage(cgImage: image)
         let extent = input.extent
 
         let mono = CIFilter.colorMonochrome()
@@ -138,8 +137,9 @@ final class MapSnapshotService {
         multiply.backgroundImage = paper
         var out = multiply.outputImage ?? input
 
-        if let tile = PaperGrain.tile.cgImage {
-            let grain = CIImage(cgImage: tile)
+        do {
+            // 1x tile: the grain is laid over snapshot PIXELS, so its size is deliberately independent of the display scale.
+            let grain = CIImage(cgImage: PaperGrain.tile(scale: 1))
                 .applyingFilter("CIAffineTile")
                 .applyingFilter("CIColorMatrix", parameters: ["inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1.6)])
                 .cropped(to: extent)
@@ -153,7 +153,7 @@ final class MapSnapshotService {
         out = vignette.outputImage ?? out
 
         guard let result = ciContext.createCGImage(out.cropped(to: extent), from: extent) else { return image }
-        return UIImage(cgImage: result, scale: image.scale, orientation: .up)
+        return result
     }
 
     // MARK: Disk cache (image PNG + pins JSON)
@@ -162,14 +162,15 @@ final class MapSnapshotService {
 
     private func loadFromDisk(key: String, points: [GeoPoint], stopIndices: [Int], size: CGSize, scale: CGFloat) -> MapSnap? {
         let png = cacheDir.appendingPathComponent("\(key).png"), meta = cacheDir.appendingPathComponent("\(key).json")
-        guard let data = try? Data(contentsOf: png), let img = UIImage(data: data, scale: scale),
+        guard let data = try? Data(contentsOf: png),
+              let img = ImageDecoding.cgImage(from: data, maxPixel: Int((max(size.width, size.height) * scale).rounded(.up))),
               let m = try? JSONDecoder().decode(Meta.self, from: Data(contentsOf: meta)),
               m.pins.count == points.count else { return nil }
-        return MapSnap(image: img, pins: m.pins.map { CGPoint(x: $0[0], y: $0[1]) }, size: size, stopIndices: stopIndices, isFallback: false)
+        return MapSnap(image: img, scale: scale, pins: m.pins.map { CGPoint(x: $0[0], y: $0[1]) }, size: size, stopIndices: stopIndices, isFallback: false)
     }
 
     private func saveToDisk(_ snap: MapSnap, key: String) {
-        guard let data = snap.image.pngData() else { return }
+        guard let data = ImageDrawing.pngData(snap.image) else { return }
         try? data.write(to: cacheDir.appendingPathComponent("\(key).png"), options: .atomic)
         let meta = Meta(pins: snap.pins.map { [Double($0.x), Double($0.y)] }, stopIndices: snap.stopIndices)
         if let j = try? JSONEncoder().encode(meta) { try? j.write(to: cacheDir.appendingPathComponent("\(key).json"), options: .atomic) }

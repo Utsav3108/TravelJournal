@@ -1,6 +1,5 @@
 import Testing
 import SwiftUI
-import UIKit
 @testable import TravelJournal
 
 @MainActor
@@ -48,7 +47,7 @@ struct StoryMapTests {
         let snap = await svc.snapshot(for: OverviewSamples.noCoordinates, size: size)
         #expect(snap.isFallback)
         #expect(snap.pins.isEmpty)
-        #expect(snap.image.size == size)
+        #expect(CGFloat(snap.image.width) / snap.scale == size.width && CGFloat(snap.image.height) / snap.scale == size.height)
     }
 
     @Test func partialCoordinatesKeepStopIndices() {
@@ -83,8 +82,8 @@ struct StoryMapTests {
 
     @Test func rendersOverviewWithFallbackToNonEmptyImage() throws {
         let img = try render(OverviewSamples.mumbai, snap: nil)
-        #expect(img.size.width > 500 && img.size.height > 800)
-        #expect(img.pngData()!.count > 20_000)
+        #expect(img.width / 2 > 500 && img.height / 2 > 800)   // rendered at 2x
+        #expect(ImageDrawing.pngData(img)!.count > 20_000)
         try write(img, "overview-fallback")
         try write(try render(OverviewSamples.partial, snap: nil), "overview-partial")
         try write(try render(OverviewSamples.noCoordinates, snap: nil), "overview-nocoords")
@@ -107,16 +106,14 @@ struct StoryMapTests {
 
     // MARK: helpers
 
-    private func render(_ model: OverviewModel, snap: MapSnap?) throws -> UIImage {
-        let r = ImageRenderer(content: RouteOverviewPage(model: model, metrics: .a4, snap: snap))
-        r.proposedSize = ProposedViewSize(width: 595, height: 842)
-        r.scale = 2
-        return try #require(r.uiImage)
+    private func render(_ model: OverviewModel, snap: MapSnap?) throws -> CGImage {
+        try #require(TestImages.render(RouteOverviewPage(model: model, metrics: .a4, snap: snap),
+                                       proposed: ProposedViewSize(width: 595, height: 842), scale: 2))
     }
 
-    private func write(_ img: UIImage, _ name: String) throws {
+    private func write(_ img: CGImage, _ name: String) throws {
         guard let dir = ProcessInfo.processInfo.environment["SIMCTL_CHILD_MAP_OUT"] ?? Optional("/private/tmp/claude-501/-Users-utsav-Documents-Projects-TravelJournal/8161a91e-c450-4f0d-8adb-8fc11249eb44/scratchpad") else { return }
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        try? img.pngData()?.write(to: URL(fileURLWithPath: dir).appendingPathComponent("\(name).png"))
+        TestImages.writePNG(img, to: URL(fileURLWithPath: dir).appendingPathComponent("\(name).png"))
     }
 }

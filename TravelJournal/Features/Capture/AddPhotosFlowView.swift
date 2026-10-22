@@ -45,7 +45,7 @@ struct AddPhotosFlowView: View {
                 }
             }
             .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     if case .done = model.step {} else {
@@ -56,7 +56,7 @@ struct AddPhotosFlowView: View {
             .sheet(item: $searchTarget) { t in
                 CapturePlaceSearchSheet(model: model, cardID: t.id)
             }
-            .fullScreenCover(isPresented: $showCamera) {
+            .platformFullScreenCover(isPresented: $showCamera) {
                 CameraCaptureView(onCapture: { shot in
                     showCamera = false
                     model.ingest([shot])
@@ -111,7 +111,7 @@ struct AddPhotosFlowView: View {
                     }
                 } label: { Label("Take a photo", systemImage: "camera").frame(maxWidth: .infinity) }
                 .buttonStyle(.bordered).controlSize(.large)
-            } else if UIImagePickerController.isSourceTypeAvailable(.camera) {
+            } else if CameraCaptureView.isCameraAvailable {
                 // Built-in camera (the real device path); hidden on the simulator and other camera-less devices.
                 Button { showCamera = true } label: {
                     Label("Take a photo", systemImage: "camera").frame(maxWidth: .infinity)
@@ -196,11 +196,12 @@ private struct SearchTarget: Identifiable { let id: UUID }
 // MARK: - Pieces
 
 struct PhotoThumb: View {
-    let image: UIImage?
+    let image: CGImage?
     var size: CGFloat = 64
+    @Environment(\.displayScale) private var displayScale
     var body: some View {
         Group {
-            if let image { Image(uiImage: image).resizable().scaledToFill() }
+            if let image { Image(photo: image, scale: displayScale, label: "Photo").resizable().scaledToFill() }
             else { KraftColor.paperDeep }
         }
         .frame(width: size, height: size)
@@ -347,7 +348,7 @@ private struct CapturePlaceSearchSheet: View {
             .scrollContentBackground(.hidden)
             .background(KraftColor.paper)
             .navigationTitle("Find this place")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search for a place")
             .onSubmit(of: .search) {
                 Task {

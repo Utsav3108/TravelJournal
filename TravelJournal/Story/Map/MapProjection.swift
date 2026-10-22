@@ -4,7 +4,9 @@ import CoreGraphics
 /// Output of the map pipeline. `pins` are in snapshot POINT space (`size`), one per stop that has
 /// coordinates, in route order (`stopIndices` says which stop each pin belongs to).
 nonisolated struct MapSnap: @unchecked Sendable {
-    var image: UIImage
+    var image: CGImage
+    /// Pixels per point of `image` (pass to `Image(..., scale:)`).
+    var scale: CGFloat = 1
     var pins: [CGPoint]
     var size: CGSize
     var stopIndices: [Int] = []

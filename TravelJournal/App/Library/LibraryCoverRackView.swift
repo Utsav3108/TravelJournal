@@ -210,7 +210,7 @@ private func coverRackPreview(_ stories: [LibraryStory], start: Int = 0) -> some
     let cities = counts.map { LibraryCity(name: $0.key, count: $0.value) }.sorted { $0.name < $1.name }
     return NavigationStack {
         CoverRackContent(stories: stories, cities: cities, startStoryID: stories[start].id, openStory: { _ in })
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
     }
 }
 

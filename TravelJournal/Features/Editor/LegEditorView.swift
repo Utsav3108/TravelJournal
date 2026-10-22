@@ -34,12 +34,12 @@ struct LegEditorView: View {
             Section("Distance and time (optional)") {
                 HStack {
                     Text("Distance")
-                    TextField("km", text: $kmText).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                    TextField("km", text: $kmText).decimalKeyboard().multilineTextAlignment(.trailing)
                     Text("km").foregroundStyle(KraftColor.inkSoft)
                 }
                 HStack {
                     Text("Duration")
-                    TextField("min", text: $minText).keyboardType(.numberPad).multilineTextAlignment(.trailing)
+                    TextField("min", text: $minText).numberKeyboard().multilineTextAlignment(.trailing)
                     Text("min").foregroundStyle(KraftColor.inkSoft)
                 }
             }
@@ -59,7 +59,7 @@ struct LegEditorView: View {
         .foregroundStyle(KraftColor.ink)
         .calmForm()
         .navigationTitle("Travel details")
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .onAppear {
             kmText = leg.distanceKm.map(EditorLogic.formatKm) ?? ""
             minText = leg.durationMinutes.map(String.init) ?? ""

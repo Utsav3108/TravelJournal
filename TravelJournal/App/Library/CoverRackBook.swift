@@ -68,7 +68,8 @@ struct CoverRackLibBook: View {
     let height: CGFloat
     let tilt: Bool
 
-    @State private var photo: UIImage?
+    @State private var photo: CGImage?
+    @Environment(\.displayScale) private var displayScale
 
     private let spine: CGFloat = 11
     private let pages: CGFloat = 7
@@ -106,9 +107,9 @@ struct CoverRackLibBook: View {
     }
 
     private func loadPhoto() async {
-        guard let path = story.coverPath, !path.hasPrefix("sample:") else { photo = nil; return }
-        let file = FilePhotoStore().url(for: path).path
-        photo = await Task.detached(priority: .userInitiated) { UIImage(contentsOfFile: file) }.value
+        guard let path = story.coverPath, StoredPhotos.isLoadable(path) else { photo = nil; return }
+        let maxPixel = ImageDecoding.maxPixel(forPoints: max(width, height), scale: displayScale)
+        photo = await Task.detached(priority: .userInitiated) { StoredPhotos.image(path: path, maxPixel: maxPixel) }.value
     }
 
     private var bookBody: some View {
@@ -143,7 +144,7 @@ struct CoverRackLibBook: View {
     private var cover: some View {
         if let img = photo {
             Color.clear
-                .overlay(Image(uiImage: img).resizable().scaledToFill())
+                .overlay(Image(texture: img, scale: displayScale).resizable().scaledToFill())
                 .clipped()
                 .overlay(LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .center, endPoint: .bottom))
                 .overlay(alignment: .bottom) {

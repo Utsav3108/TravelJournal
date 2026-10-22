@@ -213,9 +213,11 @@ private struct FSBook: View {
     private let spine: CGFloat = 7
     private let pages: CGFloat = 5
 
-    private var image: UIImage? {
-        guard let path = journey.coverThumbPath ?? journey.coverPhotoPath, !path.hasPrefix("sample:") else { return nil }
-        return UIImage(contentsOfFile: FilePhotoStore().url(for: path).path)
+    @Environment(\.displayScale) private var displayScale
+
+    private var image: CGImage? {
+        StoredPhotos.image(path: journey.coverThumbPath ?? journey.coverPhotoPath,
+                           maxPixel: ImageDecoding.maxPixel(forPoints: max(w, h), scale: displayScale))
     }
 
     private var tone: Color {
@@ -261,7 +263,7 @@ private struct FSBook: View {
 
     @ViewBuilder private var cover: some View {
         if let image {
-            Image(uiImage: image).resizable().scaledToFill()
+            Image(texture: image, scale: displayScale).resizable().scaledToFill()
                 .overlay(LinearGradient(colors: [.black.opacity(0.25), .clear, .black.opacity(0.15)], startPoint: .leading, endPoint: .trailing))
         } else {
             ZStack {

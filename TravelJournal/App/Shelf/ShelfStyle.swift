@@ -101,7 +101,7 @@ struct ShelfStylePicker: View {
                 .accessibilityAddTraits(style == selection ? .isSelected : [])
             }
             .navigationTitle("Shelf style")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
         .presentationDetents([.height(400), .large])

@@ -93,6 +93,7 @@ struct JourneyShelfView: View {
                 Text("The story and all its stops will be removed. This can't be undone.")
             }
         }
+        .measuringStatusBarInset()   // above the stack, so the story viewer gets the constant status-bar height
         .tint(KraftColor.route)
     }
 
@@ -145,9 +146,11 @@ struct JourneyShelfView: View {
 struct JourneyCoverCard: View {
     let journey: Journey
 
-    private var coverImage: UIImage? {
-        guard let path = journey.coverThumbPath ?? journey.coverPhotoPath, !path.hasPrefix("sample:") else { return nil }
-        return UIImage(contentsOfFile: FilePhotoStore().url(for: path).path)
+    @Environment(\.displayScale) private var displayScale
+
+    private var coverImage: CGImage? {
+        StoredPhotos.image(path: journey.coverThumbPath ?? journey.coverPhotoPath,
+                           maxPixel: ImageDecoding.maxPixel(forPoints: 240, scale: displayScale))
     }
 
     var body: some View {
@@ -156,7 +159,7 @@ struct JourneyCoverCard: View {
                 KraftColor.kraft
                 if let cover = coverImage {
                     GeometryReader { geo in
-                        Image(uiImage: cover).resizable().scaledToFill()
+                        Image(texture: cover, scale: displayScale).resizable().scaledToFill()   // card is one labelled element
                             .frame(width: geo.size.width, height: geo.size.height).clipped()
                     }
                     .overlay(LinearGradient(colors: [.clear, KraftColor.ink.opacity(0.55)], startPoint: .center, endPoint: .bottom))

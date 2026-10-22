@@ -72,10 +72,11 @@ struct CoverPage: View {
     var metrics: PageMetrics
 
     @Environment(\.storyImageProvider) private var provider
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         let L = CoverLayout.make(model, metrics: metrics)
-        let loader = StoryPhotoLoader(provider: provider, interactive: metrics.mode == .interactive)
+        let loader = StoryPhotoLoader(provider: provider, interactive: metrics.mode == .interactive, displayScale: displayScale)
         let photos = Array(model.heroPhotos.prefix(3))
         let parts = PageFormat.postmarkParts(model.postmark)
         let meta = [model.dateText, model.city?.uppercased()].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
@@ -86,13 +87,13 @@ struct CoverPage: View {
                     .placed(kb)
             }
             if let hero = L.hero, let p = photos.first {
-                Polaroid(photo: loader.image(p), caption: model.city ?? "", width: hero.width, seed: "cover/photo/\(p.id)")
+                Polaroid(photo: loader.image(p, label: model.city ?? "Photo", points: hero.width), caption: model.city ?? "", width: hero.width, seed: "cover/photo/\(p.id)")
                     .placed(hero)
             }
             ForEach(Array(L.taped.enumerated()), id: \.offset) { i, rect in
                 if i + 1 < photos.count {
                     let p = photos[i + 1]
-                    TapedPhoto(photo: loader.image(p), size: CGSize(width: rect.width - 8, height: rect.height - 8),
+                    TapedPhoto(photo: loader.image(p, points: rect.width), size: CGSize(width: rect.width - 8, height: rect.height - 8),
                                tapes: i == 0 ? 2 : 1, seed: "cover/photo/\(p.id)")
                         .placed(rect)
                 }

@@ -1,5 +1,5 @@
 import Foundation
-import UIKit
+import CoreGraphics
 
 /// Fallbacks used when no real service is injected: return nothing.
 struct EmptyPhotoImporter: PhotoImporting {
@@ -82,13 +82,13 @@ enum MumbaiFixtures {
     /// A small real JPEG (flat colour with a lighter band) for previews and photo-store tests.
     static func jpeg(seed: Int = 0, size: CGSize = CGSize(width: 480, height: 360)) -> Data {
         let hue = CGFloat((seed * 37) % 100) / 100
-        let r = UIGraphicsImageRenderer(size: size)
-        return r.jpegData(withCompressionQuality: 0.8) { ctx in
-            UIColor(hue: hue, saturation: 0.35, brightness: 0.85, alpha: 1).setFill()
+        let image = ImageDrawing.render(size: size, opaque: true) { ctx in
+            ctx.setFillColor(ImageDrawing.color(hue: hue, saturation: 0.35, brightness: 0.85))
             ctx.fill(CGRect(origin: .zero, size: size))
-            UIColor(white: 1, alpha: 0.35).setFill()
+            ctx.setFillColor(ImageDrawing.color(white: 1, alpha: 0.35))
             ctx.fill(CGRect(x: 0, y: size.height * 0.55, width: size.width, height: size.height * 0.2))
         }
+        return image.flatMap { ImageDrawing.jpegData($0, quality: 0.8) } ?? Data()
     }
 
     /// 3 at CST, 4 at pav bhaji, 3 at the temple, 2 at the hotel, plus one photo with nothing.

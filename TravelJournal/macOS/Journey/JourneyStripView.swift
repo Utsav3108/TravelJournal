@@ -76,17 +76,12 @@ struct JourneyStripView: View {
     private func pageView(_ item: StripComposer.Item, index: Int, size: CGSize, pages: [StoryPage]) -> some View {
         let metrics = PageMetrics.phone(size)
         let stopID = item.stopID
-        let active = stopID != nil && stopID == model.selectedStopID
-        let hovered = stopID != nil && stopID == model.hoveredStopID
+        // No outline on the pages: the strip is one continuous sheet, and a border would cut the route at every seam.
+        // Selection and hover are shown in the sidebar.
         return StoryPageView(page: item.page, metrics: metrics,
                              callbacks: StoryPageCallbacks(onLegTap: { legCard = $0 }),
                              entryY: StopLayout.entryY(at: index, in: pages, metrics: metrics))
             .frame(width: size.width, height: size.height)
-            .overlay {
-                RoundedRectangle(cornerRadius: 4)
-                    .strokeBorder(KraftColor.route.opacity(active ? 0.85 : hovered ? 0.4 : 0), lineWidth: 3)
-                    .allowsHitTesting(false)
-            }
             .contentShape(Rectangle())
             .onTapGesture {   // child taps (legs) win
                 if let stopID { model.select(stopID, center: false) }

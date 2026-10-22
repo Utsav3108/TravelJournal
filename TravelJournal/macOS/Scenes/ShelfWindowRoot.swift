@@ -12,6 +12,7 @@ struct ShelfWindowRoot: View {
         AppRootView(store: store, placeLookup: placeLookup)
             .environment(\.openJourney, { journey in openWindow(value: journey.id) })
             .syncStatusPresentation()
+            .shelfExportPresentations()
             .frame(minWidth: 720, minHeight: 480)
     }
 }

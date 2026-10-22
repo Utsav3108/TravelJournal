@@ -20,7 +20,11 @@ struct TravelJournalMacApp: App {
         .defaultSize(width: 960, height: 640)
         .windowResizability(.contentMinSize)
         .windowToolbarStyle(.unified)
-        .commands { AppCommands(newJourneyRequests: newJourneyRequests) }
+        .commands {
+            AppCommands(newJourneyRequests: newJourneyRequests)
+            ShelfCommands()
+            JourneyCommands()
+        }
 
         WindowGroup("Journey", for: UUID.self) { $journeyID in
             if let journeyID {

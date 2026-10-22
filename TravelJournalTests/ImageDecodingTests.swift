@@ -89,6 +89,7 @@ struct ImageDecodingTests {
             "iOS/App/Shelf/CoverRackShelf.swift",
             "iOS/App/Shelf/DeskStackShelf.swift",
             "iOS/App/Library/CoverRackBook.swift",
+            "macOS/Journey/JourneySidebar.swift",                  // sidebar route map: the pins and stop rows carry the information
             "Shared/Services/ImageDecoding.swift",
         ]
         let allowedDecorative: Set<String> = ["Shared/Services/ImageDecoding.swift"]
@@ -231,7 +232,9 @@ struct ImageDecodingTests {
     /// Source audit for the Phase 0 policy: SwiftUI by default; UIKit/AppKit only in the camera wrapper, the MapKit image edge and the macOS Quit button.
     @Test func uiKitAndAppKitAreOnlyUsedAtTheEdges() throws {
         let allowed: Set<String> = ["iOS/Features/Capture/CameraCaptureView.swift", "Shared/Story/Map/MapKitImageEdge.swift",
-                                    "Shared/App/StoreFailureView.swift"] // macOS Quit button: SwiftUI has no way to terminate the app
+                                    "Shared/App/StoreFailureView.swift", // macOS Quit button: SwiftUI has no way to terminate the app
+                                    "macOS/Journey/WheelScrollBridge.swift",   // mouse wheel to horizontal scroll: no SwiftUI equivalent
+                                    "macOS/Journey/TextInputFocus.swift"]      // is a text field being edited: no SwiftUI equivalent
         let banned = ["import UIKit", "import AppKit", "UIImage", "UIColor", "UIFont", "UIGraphics", "UIApplication", "UIViewController",
                       "UIActivity", "UIScreen", "UIWindow", "NSImage", "NSColor", "NSFont", "Image(uiImage:", "Image(nsImage:"]
         var offenders: [String] = []

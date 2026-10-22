@@ -42,6 +42,15 @@ nonisolated enum StripComposer {
 
     // MARK: Sizing
 
+    /// A window restored at launch is laid out once before its viewport is measured (height 0). Pages built at that
+    /// size subtract their margins and go negative ("Invalid frame dimension"), so nothing is drawn until the
+    /// viewport has a real height. Legitimate sizes (window minimum 640 pt, zoomed out to a fraction) are far above this.
+    static let minViewportHeight: CGFloat = 100
+
+    static func isMeasured(_ viewport: CGSize) -> Bool {
+        viewport.height.isFinite && viewport.width.isFinite && viewport.height >= minViewportHeight && viewport.width > 0
+    }
+
     /// One page at `zoom` (1 = the page is as tall as the viewport).
     static func pageSize(viewportHeight: CGFloat, zoom: CGFloat) -> CGSize {
         let h = max(viewportHeight * clamped(zoom), 1)

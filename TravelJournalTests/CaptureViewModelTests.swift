@@ -19,7 +19,7 @@ final class CaptureViewModelTests: XCTestCase {
         let ctx = container.mainContext
         let j = Journey(title: "A Day in Mumbai", date: F.date(8, 0, day: 1))
         ctx.insert(j)
-        let editor = JourneyEditor(context: ctx, photos: FilePhotoStore(baseURL: tmp))
+        let editor = JourneyEditor(context: ctx, photos: ModelPhotoStore())
         return (CaptureViewModel(importer: MockPhotoImporter(photos: photos), lookup: lookup), j, editor)
     }
 

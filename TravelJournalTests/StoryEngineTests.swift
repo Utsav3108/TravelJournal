@@ -49,11 +49,11 @@ final class StoryEngineTests: XCTestCase {
     func testHeroFirstWhenHeroIsNotFirst() {
         let j = Journey(title: "H"); context.insert(j)
         let s = Stop(placeName: "A"); editor.addStop(s, to: j)
-        let p1 = StopPhoto(relativePath: "sample:1", orderIndex: 0)
-        let p2 = StopPhoto(relativePath: "sample:2", orderIndex: 1, isHero: true)
+        let p1 = StopPhoto(orderIndex: 0)
+        let p2 = StopPhoto(orderIndex: 1, isHero: true)
         s.photos.append(p1); s.photos.append(p2)
         let m = stops(layout.pages(for: j))[0]
-        XCTAssertEqual(m.photos.map(\.relativePath), ["sample:2", "sample:1"])
+        XCTAssertEqual(m.photos.map(\.id), [p2.id.uuidString, p1.id.uuidString])
         XCTAssertEqual(m.photos.map(\.isHero), [true, false])
         XCTAssertEqual(m.template, .t2)
     }

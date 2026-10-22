@@ -12,6 +12,11 @@ final class MigrationTests: XCTestCase {
         return dir
     }
 
+    private func writeFile(_ data: Data, to url: URL) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: url)
+    }
+
     private func config(_ schema: Schema, _ url: URL) -> ModelConfiguration {
         ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
     }
@@ -47,8 +52,8 @@ final class MigrationTests: XCTestCase {
 
         let goodRel = "Photos/J/good.jpg", goodThumb = "Photos/J/thumbs/good.jpg"
         let badRel = "Photos/J/missing.jpg"
-        try FilePhotoStore.write(try TestImages.jpeg(width: 3000, height: 2000), to: base.appendingPathComponent(goodRel))
-        try FilePhotoStore.write(try TestImages.jpeg(width: 600, height: 400), to: base.appendingPathComponent(goodThumb))
+        try writeFile(try MigrationImages.jpeg(width: 3000, height: 2000), to: base.appendingPathComponent(goodRel))
+        try writeFile(try MigrationImages.jpeg(width: 600, height: 400), to: base.appendingPathComponent(goodThumb))
 
         let journeyID: UUID, goodID: UUID, badID: UUID
         do {
@@ -92,39 +97,20 @@ final class MigrationTests: XCTestCase {
         XCTAssertEqual(good.caption, "Platform")
         XCTAssertFalse(FileManager.default.fileExists(atPath: base.appendingPathComponent(goodRel).path), "original deleted")
         XCTAssertFalse(FileManager.default.fileExists(atPath: base.appendingPathComponent(goodThumb).path), "thumb deleted")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: base.appendingPathComponent("MigrationStaging").path),
+                       "the staging copies are cleaned up")
 
         // An unreadable file never loses the row; it just has no data.
         let bad = try XCTUnwrap(photos.first { $0.id == badID })
         XCTAssertNil(bad.imageData)
         XCTAssertEqual(photos.count, 2)
     }
-
-    @MainActor
-    func testPhotoCacheRebuildsLocalFilesFromModel() throws {
-        let base = try tempDir()
-        let container = AppContainer.make(inMemory: true)
-        let ctx = container.mainContext
-        let j = Journey(title: "T"); ctx.insert(j)
-        let s = Stop(placeName: "S"); j.stops.append(s)
-        let store = FilePhotoStore(baseURL: base)
-        let photo = try store.importPhoto(data: try TestImages.jpeg(width: 3000, height: 1500), into: s, journeyID: j.id)
-        XCTAssertNotNil(photo.imageData)
-        XCTAssertLessThanOrEqual(max(photo.pixelWidth, photo.pixelHeight), PhotoLimits.displayMaxPixel)
-
-        // Simulate a fresh device (or post-migration): row + data synced, no files.
-        try FileManager.default.removeItem(at: base.appendingPathComponent("Photos"))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: store.url(for: photo.relativePath).path))
-        XCTAssertEqual(PhotoCache.warm(context: ctx, store: store), 2)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: store.url(for: photo.relativePath).path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: store.url(for: photo.thumbRelativePath).path))
-        XCTAssertEqual(PhotoCache.warm(context: ctx, store: store), 0, "only missing files are written")
-    }
 }
 
 final class PhotoEncodingTests: XCTestCase {
     func testOrientationIsBakedIntoPixels() throws {
         // Stored 300x100 landscape with EXIF orientation 6 (rotate 90° CW) displays as 100x300 portrait.
-        let data = try TestImages.jpeg(width: 300, height: 100, orientation: 6)
+        let data = try MigrationImages.jpeg(width: 300, height: 100, orientation: 6)
         let enc = try XCTUnwrap(PhotoEncoding.reencoded(data, maxPixel: 2048))
         XCTAssertEqual(enc.width, 100)
         XCTAssertEqual(enc.height, 300)
@@ -135,7 +121,7 @@ final class PhotoEncodingTests: XCTestCase {
     }
 
     func testDisplayP3ProfileIsKept() throws {
-        let data = try TestImages.jpeg(width: 400, height: 300, colorSpace: CGColorSpace(name: CGColorSpace.displayP3)!)
+        let data = try MigrationImages.jpeg(width: 400, height: 300, colorSpace: CGColorSpace(name: CGColorSpace.displayP3)!)
         let enc = try XCTUnwrap(PhotoEncoding.reencoded(data, maxPixel: 2048))
         let src = try XCTUnwrap(CGImageSourceCreateWithData(enc.data as CFData, nil))
         let props = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any])
@@ -143,15 +129,15 @@ final class PhotoEncodingTests: XCTestCase {
     }
 
     func testNeverUpscalesAndCapsLongEdge() throws {
-        let small = try XCTUnwrap(PhotoEncoding.reencoded(try TestImages.jpeg(width: 800, height: 600), maxPixel: 2048))
+        let small = try XCTUnwrap(PhotoEncoding.reencoded(try MigrationImages.jpeg(width: 800, height: 600), maxPixel: 2048))
         XCTAssertEqual(small.width, 800)
-        let big = try XCTUnwrap(PhotoEncoding.reencoded(try TestImages.jpeg(width: 4000, height: 3000), maxPixel: 2048))
+        let big = try XCTUnwrap(PhotoEncoding.reencoded(try MigrationImages.jpeg(width: 4000, height: 3000), maxPixel: 2048))
         XCTAssertEqual(big.width, 2048)
         XCTAssertEqual(big.height, 1536)
     }
 }
 
-enum TestImages {
+enum MigrationImages {
     static func jpeg(width: Int, height: Int, orientation: Int? = nil,
                      colorSpace: CGColorSpace = CGColorSpaceCreateDeviceRGB()) throws -> Data {
         let ctx = try XCTUnwrap(CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,

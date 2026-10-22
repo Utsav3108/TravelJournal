@@ -6,7 +6,7 @@ final class LibraryIndexTests: XCTestCase {
                        dateText: String = "1 Jan 2026") -> LibraryStory {
         LibraryStory(id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", n))!,
                      title: title, date: Date(timeIntervalSince1970: 1_700_000_000 - Double(n) * 86_400),
-                     dateText: dateText, city: city, country: country, weight: 1, coverPath: nil)
+                     dateText: dateText, city: city, country: country, weight: 1, coverPhotoID: nil)
     }
     private func fx(_ n: Int, single: Bool = false, noCountryEvery: Int? = nil) -> [LibraryStory] {
         LibraryFixtures.stories(count: n, singleCountry: single, noCountryEvery: noCountryEvery)

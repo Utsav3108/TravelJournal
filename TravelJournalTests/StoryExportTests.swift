@@ -28,7 +28,7 @@ final class StoryExportTests: XCTestCase {
     // MARK: Helpers
 
     private func exporter() -> StoryPDFExporter {
-        StoryPDFExporter(snapshots: snapshots, photoStore: FilePhotoStore(baseURL: base),
+        StoryPDFExporter(snapshots: snapshots,
                          outputDirectory: base.appendingPathComponent("out-\(UUID().uuidString)"))
     }
 
@@ -52,18 +52,14 @@ final class StoryExportTests: XCTestCase {
         return ImageDrawing.jpegData(img, quality: 0.85)!
     }
 
-    /// Replaces "sample:" photo paths with real JPEG files in the temp store.
+    /// Gives the sample (placeholder) photos real JPEG bytes in the model.
     @discardableResult
     private func attachRealPhotos(_ j: Journey) throws -> Int {
         var total = 0
         for s in j.orderedStops {
             for (i, p) in s.orderedPhotos.enumerated() {
-                let rel = "Photos/\(p.id.uuidString).jpg"
                 let portrait = i % 2 == 1
-                try jpeg(seed: total, size: portrait ? CGSize(width: 1800, height: 2400) : CGSize(width: 2400, height: 1800))
-                    .write(to: base.appendingPathComponent(rel))
-                p.relativePath = rel
-                p.thumbRelativePath = rel
+                p.imageData = jpeg(seed: total, size: portrait ? CGSize(width: 1800, height: 2400) : CGSize(width: 2400, height: 1800))
                 total += 1
             }
         }
@@ -119,7 +115,7 @@ final class StoryExportTests: XCTestCase {
         XCTAssertLessThan(size, 8_000_000, "Mumbai PDF with \(photoCount) 2400px JPEGs must stay under 8 MB (was \(size))")
 
         try? FileManager.default.removeItem(atPath: Self.scratch + "/Mumbai.pdf")
-        try FileManager.default.copyItem(at: url, to: URL(fileURLWithPath: Self.scratch + "/Mumbai.pdf"))
+        try? FileManager.default.copyItem(at: url, to: URL(fileURLWithPath: Self.scratch + "/Mumbai.pdf"))
         writePNGs(doc, prefix: "mumbai")
     }
 
@@ -134,7 +130,7 @@ final class StoryExportTests: XCTestCase {
     func testCancellationLeavesNoFile() async throws {
         let j = SampleData.mumbai(in: context)
         let out = base.appendingPathComponent("cancel-out")
-        let ex = StoryPDFExporter(snapshots: snapshots, photoStore: FilePhotoStore(baseURL: base), outputDirectory: out)
+        let ex = StoryPDFExporter(snapshots: snapshots, outputDirectory: out)
         let task = Task { @MainActor in try await ex.export(j) }
         ex.progress = { done, _ in if done == 2 { task.cancel() } }
         do {

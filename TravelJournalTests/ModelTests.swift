@@ -130,7 +130,7 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(st.money, ["INR": 180])
         XCTAssertEqual(st.modes, [.taxi, .autoRickshaw])
         XCTAssertEqual(j.displayCity, "Mumbai")
-        XCTAssertEqual(j.coverPhoto?.relativePath, "sample:cst-1")
+        XCTAssertEqual(j.coverPhoto?.id, j.orderedStops.first?.hero?.id, "cover is the first stop's hero")
         XCTAssertEqual(j.postmarkText, "ARRIVED · 19 OCT 2026 · MUMBAI")
     }
 
@@ -159,39 +159,45 @@ final class ModelTests: XCTestCase {
         XCTAssertNil(j.coverPhoto)
     }
 
-    func testHeroPromotionPhotoLimitAndSweep() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let store = FilePhotoStore(baseURL: dir)
-        let (j, s) = makeJourney(["A"])
+    func testHeroPromotionAndPhotoLimit() throws {
+        let store = ModelPhotoStore()
+        let (_, s) = makeJourney(["A"])
         let jpeg = try Self.makeJPEG(width: 3000, height: 1500)
-        for _ in 0..<4 { try store.importPhoto(data: jpeg, into: s[0], journeyID: j.id) }
-        XCTAssertThrowsError(try store.importPhoto(data: jpeg, into: s[0], journeyID: j.id)) {
+        for _ in 0..<4 { try store.importPhoto(data: jpeg, into: s[0]) }
+        XCTAssertThrowsError(try store.importPhoto(data: jpeg, into: s[0])) {
             XCTAssertEqual($0 as? PhotoStoreError, .limitReached)
         }
         let photos = s[0].orderedPhotos
         XCTAssertEqual(photos.map(\.isHero), [true, false, false, false])
         XCTAssertEqual(max(photos[0].pixelWidth, photos[0].pixelHeight), 2048)
-        XCTAssertNotNil(photos[0].imageData, "display JPEG is stored on the model so it syncs")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: store.url(for: photos[0].relativePath).path))
-        let thumb = CGImageSourceCreateWithURL(store.url(for: photos[0].thumbRelativePath) as CFURL, nil)!
-        let tp = CGImageSourceCopyPropertiesAtIndex(thumb, 0, nil) as! [CFString: Any]
-        XCTAssertEqual(tp[kCGImagePropertyPixelWidth] as? Int, 600)
+        let stored = try XCTUnwrap(photos[0].imageData, "the display JPEG lives on the model, so it syncs")
+        let src = try XCTUnwrap(CGImageSourceCreateWithData(stored as CFData, nil))
+        let props = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any])
+        XCTAssertEqual(props[kCGImagePropertyPixelWidth] as? Int, 2048)
 
         store.removePhoto(photos[0], from: s[0])
         XCTAssertEqual(s[0].photos.count, 3)
         XCTAssertEqual(s[0].photos.filter(\.isHero).count, 1)
         XCTAssertTrue(s[0].orderedPhotos[0].isHero)
+    }
 
-        let keep = Set(s[0].photos.flatMap { [$0.relativePath, $0.thumbRelativePath] })
-        let stray = dir.appendingPathComponent("Photos/stray.jpg")
-        try Data([1]).write(to: stray)
-        store.sweepOrphans(knownPaths: keep)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: stray.path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: store.url(for: s[0].orderedPhotos[0].relativePath).path))
+    /// Photo bytes are part of the rows, so deleting a stop or a journey removes them with no files left to clean up.
+    func testDeletingStopAndJourneyRemovesPhotoRows() throws {
+        let store = ModelPhotoStore()
+        let (j, s) = makeJourney(["A", "B"])
+        let jpeg = try Self.makeJPEG(width: 800, height: 600)
+        try store.importPhoto(data: jpeg, into: s[0])
+        try store.importPhoto(data: jpeg, into: s[1])
+        try context.save()
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<StopPhoto>()), 2)
 
-        store.removeAllFiles(forJourney: j.id)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: store.url(for: "Photos/\(j.id.uuidString)").path))
+        editor.deleteStop(s[0], in: j)
+        try context.save()
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<StopPhoto>()), 1, "the stop's photo goes with it")
+
+        editor.deleteJourney(j)
+        try context.save()
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<StopPhoto>()), 0)
     }
 
     private static func makeJPEG(width: Int, height: Int) throws -> Data {

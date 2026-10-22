@@ -1,5 +1,6 @@
 import Testing
 import SwiftUI
+import SwiftData
 import CoreGraphics
 import ImageIO
 @testable import TravelJournal
@@ -35,13 +36,16 @@ struct ImageDecodingTests {
         #expect(TestImages.pixel(cg, x: 100, y: 90).r > 200, "bottom is red")
     }
 
-    @Test func storedPhotoLoadsUprightThroughTheStore() throws {
-        let dir = try tempDir()
-        defer { try? FileManager.default.removeItem(at: dir) }
-        try TestImages.jpeg(size: CGSize(width: 300, height: 150), orientation: 6).write(to: dir.appendingPathComponent("Photos/p.jpg"))
-        let store = FilePhotoStore(baseURL: dir)
-        let cg = try #require(StoredPhotos.image(path: "Photos/p.jpg", maxPixel: 600, store: store))
+    /// A rotated JPEG stored on a `StopPhoto` still comes out upright through the shared loader.
+    @Test @MainActor func storedPhotoLoadsUprightFromTheModel() throws {
+        let container = AppContainer.make(inMemory: true)   // keep the container alive as long as its context is used
+        let photo = StopPhoto()
+        photo.imageData = TestImages.jpeg(size: CGSize(width: 300, height: 150), orientation: 6)
+        container.mainContext.insert(photo)
+        let cg = try #require(StoredPhotos.image(photo: photo, maxPixel: 600))
         #expect(cg.height > cg.width)
+        #expect(StoredPhotos.image(photo: StopPhoto(), maxPixel: 600) == nil, "no image data draws a placeholder")
+        withExtendedLifetime(container) {}
     }
 
     // MARK: 2. Scale
@@ -77,17 +81,17 @@ struct ImageDecodingTests {
     /// an already-labelled card may use them; photos use `Image(photo:scale:label:)`.
     @Test func decorativeImagesAreOnTheAllowList() throws {
         let allowedTexture: Set<String> = [
-            "DesignSystem/Components/PaperBackground.swift",   // paper grain
-            "Story/Map/IllustratedMapFallback.swift",          // map illustration (pins and rows carry the information)
-            "Story/Map/RouteOverviewPage.swift",
-            "App/JourneyShelfView.swift",                      // book covers: the card is one labelled element (.ignore + label)
-            "App/Shelf/FloatingShelvesShelf.swift",
-            "App/Shelf/CoverRackShelf.swift",
-            "App/Shelf/DeskStackShelf.swift",
-            "App/Library/CoverRackBook.swift",
-            "Services/ImageDecoding.swift",
+            "Shared/DesignSystem/Components/PaperBackground.swift",   // paper grain
+            "Shared/Story/Map/IllustratedMapFallback.swift",          // map illustration (pins and rows carry the information)
+            "Shared/Story/Map/RouteOverviewPage.swift",
+            "iOS/App/JourneyShelfView.swift",                      // book covers: the card is one labelled element (.ignore + label)
+            "iOS/App/Shelf/FloatingShelvesShelf.swift",
+            "iOS/App/Shelf/CoverRackShelf.swift",
+            "iOS/App/Shelf/DeskStackShelf.swift",
+            "iOS/App/Library/CoverRackBook.swift",
+            "Shared/Services/ImageDecoding.swift",
         ]
-        let allowedDecorative: Set<String> = ["Services/ImageDecoding.swift"]
+        let allowedDecorative: Set<String> = ["Shared/Services/ImageDecoding.swift"]
         var offenders: [String] = []
         for (path, lines) in try Self.sourceLines() {
             for line in lines {
@@ -101,8 +105,8 @@ struct ImageDecodingTests {
     /// The photo surfaces that are standalone (not inside a labelled card) must stay labelled.
     @Test func standalonePhotoSurfacesAreLabelled() throws {
         let sources = Dictionary(uniqueKeysWithValues: try Self.sourceLines())
-        for file in ["Story/Viewer/StoryViewerView.swift", "Story/Pages/StoryPageView.swift",
-                     "Features/Editor/StopEditorView.swift", "Features/Capture/AddPhotosFlowView.swift"] {
+        for file in ["iOS/Story/StoryViewerView.swift", "Shared/Story/Pages/StoryPageView.swift",
+                     "iOS/Features/Editor/StopEditorView.swift", "iOS/Features/Capture/AddPhotosFlowView.swift"] {
             #expect(sources[file]?.contains { $0.contains("Image(photo:") } == true, "\(file) should use a labelled Image(photo:)")
         }
     }
@@ -147,13 +151,15 @@ struct ImageDecodingTests {
         #expect(isDisplayP3(cg), "decoded colour space was \(String(describing: cg.colorSpace?.name))")
     }
 
-    @Test func displayP3SurvivesThePDFReencode() throws {
-        let dir = try tempDir()
-        defer { try? FileManager.default.removeItem(at: dir) }
+    @Test @MainActor func displayP3SurvivesThePDFReencode() throws {
         let p3 = try #require(CGColorSpace(name: CGColorSpace.displayP3))
-        try TestImages.jpeg(size: CGSize(width: 400, height: 300), colorSpace: p3).write(to: dir.appendingPathComponent("Photos/p3.jpg"))
-        let provider = PDFImageProvider(store: FilePhotoStore(baseURL: dir))
-        let photo = StoryPhoto(id: "p3", relativePath: "Photos/p3.jpg", thumbPath: nil, isHero: true)
+        let container = AppContainer.make(inMemory: true)   // keep the container alive as long as its context is used
+        defer { withExtendedLifetime(container) {} }
+        let stored = StopPhoto()
+        stored.imageData = TestImages.jpeg(size: CGSize(width: 400, height: 300), colorSpace: p3)
+        container.mainContext.insert(stored)
+        let provider = PDFImageProvider(source: ModelPhotoSource(context: container.mainContext))
+        let photo = StoryPhoto(id: stored.id.uuidString, isHero: true)
         let cg = try #require(provider.image(for: photo, preferThumbnail: false))
         #expect(isDisplayP3(cg), "PDF re-encode converted the colour space to \(String(describing: cg.colorSpace?.name))")
     }
@@ -185,7 +191,12 @@ struct ImageDecodingTests {
         #expect(h(paragraphs, KraftFontName.lora, 16, 3.5, 250) == 117)
         #expect(h("Ends with newline\n", KraftFontName.lora, 16, 3.5, 250) == 45)
         #expect(h("A short line of text", KraftFontName.lora, 16, 3.5, 100) == 45)
-        #expect(h("A short line of text", "NoSuchFont", 16, 2, 100) == 41, "unknown font falls back to the system font")
+        #if os(macOS)
+        let systemFallbackHeight: CGFloat = 40   // the macOS system font has tighter line metrics than iOS
+        #else
+        let systemFallbackHeight: CGFloat = 41
+        #endif
+        #expect(h("A short line of text", "NoSuchFont", 16, 2, 100) == systemFallbackHeight, "unknown font falls back to the system font")
         #expect(h("", KraftFontName.lora, 16, 3.5, 250) == 0)
         #expect(PageText.width("ARRIVED", fontName: KraftFontName.elite, size: 11, tracking: 1.5) == 57)
         #expect(PageText.width("A Day in Mumbai", fontName: "Allura-Regular", size: 44) == 311)
@@ -217,9 +228,10 @@ struct ImageDecodingTests {
 
     // MARK: UIKit / AppKit stays at the edges
 
-    /// Source audit for the Phase 0 policy: SwiftUI by default; UIKit/AppKit only in the camera wrapper and the MapKit image edge.
+    /// Source audit for the Phase 0 policy: SwiftUI by default; UIKit/AppKit only in the camera wrapper, the MapKit image edge and the macOS Quit button.
     @Test func uiKitAndAppKitAreOnlyUsedAtTheEdges() throws {
-        let allowed: Set<String> = ["Services/CameraCaptureView.swift", "Story/Map/MapKitImageEdge.swift"]
+        let allowed: Set<String> = ["iOS/Features/Capture/CameraCaptureView.swift", "Shared/Story/Map/MapKitImageEdge.swift",
+                                    "Shared/App/StoreFailureView.swift"] // macOS Quit button: SwiftUI has no way to terminate the app
         let banned = ["import UIKit", "import AppKit", "UIImage", "UIColor", "UIFont", "UIGraphics", "UIApplication", "UIViewController",
                       "UIActivity", "UIScreen", "UIWindow", "NSImage", "NSColor", "NSFont", "Image(uiImage:", "Image(nsImage:"]
         var offenders: [String] = []

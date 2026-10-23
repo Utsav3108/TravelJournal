@@ -73,6 +73,8 @@ struct JourneyDetailContent: View {
             } header: {
                 Text("Stops").stampLabel(12).foregroundStyle(KraftColor.inkSoft)
             }
+            JourneyExportPrivacySection(journey: journey)
+                .listRowBackground(KraftColor.paperDeep.opacity(0.55))
         }
         .groupedListStyle()
         .calmForm()

@@ -98,6 +98,7 @@ struct StopFormView: View {
             detailsSection
             reviewSection
             costSection
+            StopExportVisibilitySection(stop: stop, journey: journey)
         }
         .foregroundStyle(KraftColor.ink)
         .calmForm()

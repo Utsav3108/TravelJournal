@@ -1,4 +1,5 @@
 import Testing
+import XCTest
 import SwiftUI
 @testable import TravelJournal
 
@@ -60,15 +61,68 @@ struct StoryMapTests {
     }
 
     @Test func statsFormatting() {
-        let s = StatsModel(stops: 4, km: 8.44, totalMinutes: 320, travelMinutes: 65, modes: ["walk", "taxi"], photos: 0, moneyText: nil)
-        #expect(OverviewStatsFormat.items(s) == ["4 stops", "8.4 km", "5½ HOURS", "walk, taxi"])
-        #expect(OverviewStatsFormat.travelText(s) == "travel 1 h 5 min")
+        let s = StatsModel(stops: 4, km: 8.44, totalMinutes: 320, travelMinutes: 63, modes: ["taxi", "autoRickshaw"], photos: 0, moneyText: nil)
+        #expect(OverviewStatsFormat.primaryRow(s) == ["4 stops", "8.4 km", "5½ hours"])
+        #expect(OverviewStatsFormat.secondaryRow(s) == ["travel 1 hour", "taxi, auto"])
+        // The strip prints in capitals (stampLabel).
+        #expect(OverviewStatsFormat.secondaryRow(s).joined(separator: " · ").uppercased() == "TRAVEL 1 HOUR · TAXI, AUTO")
+        #expect(OverviewStatsFormat.travelText(s) == "travel 1 hour")
         #expect(OverviewStatsFormat.kmText(8.46) == "8.5 km")
         #expect(OverviewStatsFormat.duration(45) == "45 min")
         #expect(OverviewStatsFormat.duration(120) == "2 h")
-        let one = StatsModel(stops: 1, km: nil, totalMinutes: 30, travelMinutes: 0, modes: ["a", "b", "c", "d"], photos: 0, moneyText: nil)
-        #expect(OverviewStatsFormat.items(one) == ["1 stop", "½ HOUR", "a, b, c +1"])
+        let one = StatsModel(stops: 1, km: nil, totalMinutes: 30, travelMinutes: 0,
+                             modes: ["walk", "localTrain", "bus", "ferry", "rocket"], photos: 0, moneyText: nil)
+        #expect(OverviewStatsFormat.primaryRow(one) == ["1 stop", "½ hour"])
+        #expect(OverviewStatsFormat.secondaryRow(one) == ["walk, local train, bus +1"])
         #expect(OverviewStatsFormat.travelText(one) == nil)
+        let still = StatsModel(stops: 1, km: nil, totalMinutes: 10, travelMinutes: 0, modes: [], photos: 0, moneyText: nil)
+        #expect(OverviewStatsFormat.primaryRow(still) == ["1 stop", "10 min"])
+        #expect(OverviewStatsFormat.secondaryRow(still).isEmpty)
+    }
+
+    @Test func legsSummaryUsesShortModeNames() {
+        let rows = OverviewLegsFormat.rows(OverviewModel(
+            stops: OverviewSamples.mumbai.stops, legs: [OverviewSamples.leg(1, "autoRickshaw", 6, 20)], stats: OverviewSamples.stats))
+        #expect(rows.count == 1 && rows[0].detail == "auto · 20 min · 6 km")
+    }
+
+    /// Two rows at most, whatever the content: a crowded strip is exactly as tall as a short two-row one.
+    @Test func statsStripNeverWrapsPastTwoRows() throws {
+        let width = PageMetrics.a4.size.width - 2 * PageMetrics.a4.margin
+        func height(_ s: StatsModel, width w: CGFloat = width) throws -> Int {
+            try #require(TestImages.render(OverviewStatsStrip(stats: s).frame(width: w), scale: 1)).height
+        }
+        let short = StatsModel(stops: 4, km: 8.4, totalMinutes: 320, travelMinutes: 63, modes: ["taxi"], photos: 0, moneyText: nil)
+        let crowded = StatsModel(stops: 12, km: 1234.5, totalMinutes: 14 * 60 + 30, travelMinutes: 9 * 60 + 15,
+                                 modes: ["localTrain", "autoRickshaw", "ferry", "metro", "walk"], photos: 0, moneyText: nil)
+        let h = try height(short)
+        #expect(abs(try height(crowded) - h) <= 1)
+        // Even squeezed to a width where the rows would have to wrap, the strip keeps its two-row height.
+        #expect(abs(try height(crowded, width: 220) - h) <= 1)
+    }
+
+    @Test func zoomedOutWidensRegionAndHasItsOwnCacheKey() {
+        let size = CGSize(width: 511, height: 400)
+        let tight = MapSnapshotService.region(for: [cst, sid], size: size, zoomedOut: false)!
+        let wide = MapSnapshotService.region(for: [cst, sid], size: size, zoomedOut: true)!
+        #expect(wide.centerLat == tight.centerLat && wide.centerLon == tight.centerLon)
+        #expect(abs(wide.latSpan / tight.latSpan - MapProjection.zoomOutFactor) < 1e-9)
+        #expect(abs(wide.lonSpan / tight.lonSpan - MapProjection.zoomOutFactor) < 1e-9)
+        #expect(MapSnapshotService.isZoomedOut(.zoomedOut) && MapSnapshotService.isZoomedOut(.hidden))
+        #expect(!MapSnapshotService.isZoomedOut(.show))
+        let normal = MapProjection.cacheKey([cst, sid], size: size, scale: 2)
+        #expect(normal == MapProjection.cacheKey([cst, sid], size: size, scale: 2, zoomedOut: false))
+        #expect(normal != MapProjection.cacheKey([cst, sid], size: size, scale: 2, zoomedOut: true))
+    }
+
+    @Test func zoomedOutFallbackGathersPinsTowardCentre() {
+        let size = CGSize(width: 300, height: 200)
+        let normal = MapSnapshotService.fallback(for: OverviewSamples.mumbai, size: size)
+        let wide = MapSnapshotService.fallback(for: OverviewSamples.mumbai, size: size, mapMode: .zoomedOut)
+        let c = CGPoint(x: 150, y: 100)
+        for (a, b) in zip(normal.pins, wide.pins) {
+            #expect(abs(hypot(b.x - c.x, b.y - c.y) * MapProjection.zoomOutFactor - hypot(a.x - c.x, a.y - c.y)) < 0.01)
+        }
     }
 
     @Test func hitPathContainsSegmentNotFarAway() {
@@ -112,8 +166,47 @@ struct StoryMapTests {
     }
 
     private func write(_ img: CGImage, _ name: String) throws {
-        guard let dir = ProcessInfo.processInfo.environment["SIMCTL_CHILD_MAP_OUT"] ?? Optional("/private/tmp/claude-501/-Users-utsav-Documents-Projects-TravelJournal/8161a91e-c450-4f0d-8adb-8fc11249eb44/scratchpad") else { return }
+        // Set TEST_RUNNER_MAP_OUT=<dir> on xcodebuild to keep these PNGs for a look by eye.
+        let env = ProcessInfo.processInfo.environment
+        guard let dir = env["MAP_OUT"] ?? env["SIMCTL_CHILD_MAP_OUT"] else { return }
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         TestImages.writePNG(img, to: URL(fileURLWithPath: dir).appendingPathComponent("\(name).png"))
+    }
+}
+
+/// Reference images for the overview page (illustrated fallback, so no network and deterministic).
+@MainActor
+final class RouteOverviewSnapshotTests: XCTestCase {
+    private func overview(_ fixture: JourneyFixtures.Fixture) throws -> OverviewModel {
+        for page in StoryLayout().pages(for: fixture.journey) { if case .overview(let m) = page { return m } }
+        throw XCTSkip("no overview page")
+    }
+
+    private func render(_ model: OverviewModel, mapMode: ExportPrivacy.MapMode = .show, snap: MapSnap? = nil) throws -> CGImage {
+        try XCTUnwrap(TestImages.render(RouteOverviewPage(model: model, metrics: .a4, snap: snap, mapMode: mapMode),
+                                        proposed: ProposedViewSize(width: 595, height: 842), scale: 2))
+    }
+
+    func testFourStopsA4() throws {
+        let f = JourneyFixtures.fourStops()
+        let model = try overview(f)
+        assertSnapshot(try render(model), named: "overview-fourStops-a4")
+        assertSnapshot(try render(model, mapMode: .zoomedOut), named: "overview-fourStops-a4-zoomedOut")
+    }
+
+    /// Not asserted (network-dependent): with TEST_RUNNER_MAP_OUT=<dir>, writes the live MapKit page so the
+    /// halos can be checked by eye over real map labels.
+    func testFourStopsLiveMapForEyeCheck() async throws {
+        guard let dir = ProcessInfo.processInfo.environment["MAP_OUT"] else { throw XCTSkip("set TEST_RUNNER_MAP_OUT") }
+        let f = JourneyFixtures.fourStops()
+        let model = try overview(f)
+        let svc = MapSnapshotService(cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent("maptest-\(UUID().uuidString)"))
+        svc.timeout = .seconds(15)
+        for mode in [ExportPrivacy.MapMode.show, .zoomedOut] {
+            let snap = await svc.snapshot(for: model, size: MapSnapshotService.mapSize(for: .a4), scale: 2, mapMode: mode)
+            let name = "overview-fourStops-live-\(mode.rawValue)\(snap.isFallback ? "-FELLBACK" : "")"
+            TestImages.writePNG(try render(model, mapMode: mode, snap: snap),
+                                to: URL(fileURLWithPath: dir).appendingPathComponent("\(name).png"))
+        }
     }
 }

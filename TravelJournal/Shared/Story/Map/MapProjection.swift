@@ -29,6 +29,8 @@ nonisolated enum MapProjection {
 
     static let minSpan = 0.01
     static let paddingFactor = 1.5
+    /// `MapMode.zoomedOut` multiplies both spans by this, so a stop's exact street is not readable.
+    static let zoomOutFactor = 3.0
 
     /// Bounding box * padding, expanded to the card aspect ratio (width/height, measured on the
     /// ground using cos(lat) so nothing is distorted), with a minimum span. Nil when empty.
@@ -44,6 +46,18 @@ nonisolated enum MapProjection {
         let groundW = lonSpan * k, groundH = latSpan
         if groundW / groundH < a { lonSpan = groundH * a / k } else { latSpan = groundW / a }
         return Region(centerLat: cLat, centerLon: cLon, latSpan: min(latSpan, 170), lonSpan: min(lonSpan, 350))
+    }
+
+    /// Same centre, both spans times `factor` (aspect kept), clamped like `fitRegion`.
+    static func widened(_ r: Region, by factor: Double = zoomOutFactor) -> Region {
+        Region(centerLat: r.centerLat, centerLon: r.centerLon,
+               latSpan: min(r.latSpan * factor, 170), lonSpan: min(r.lonSpan * factor, 350))
+    }
+
+    /// Points pulled toward the centre of `size` by `factor`: the illustrated fallback's wider region.
+    static func shrinkTowardCentre(_ pts: [CGPoint], size: CGSize, by factor: Double = zoomOutFactor) -> [CGPoint] {
+        let cx = size.width / 2, cy = size.height / 2, k = CGFloat(1 / max(factor, 1))
+        return pts.map { CGPoint(x: cx + ($0.x - cx) * k, y: cy + ($0.y - cy) * k) }
     }
 
     /// Linear lat/lon -> point mapping inside `size` for the illustrated fallback. Preserves the
@@ -65,9 +79,11 @@ nonisolated enum MapProjection {
         }
     }
 
-    /// Stable disk-cache key (FNV-1a over rounded coordinates, size and scale).
-    static func cacheKey(_ pts: [GeoPoint], size: CGSize, scale: CGFloat) -> String {
+    /// Stable disk-cache key (FNV-1a over rounded coordinates, size, scale and zoom). Zoomed-out keys
+    /// differ from normal ones; normal keys match earlier builds, so existing caches stay valid.
+    static func cacheKey(_ pts: [GeoPoint], size: CGSize, scale: CGFloat, zoomedOut: Bool = false) -> String {
         var s = "v2|\(Int(size.width.rounded()))x\(Int(size.height.rounded()))@\(Int(scale))"
+        if zoomedOut { s += "|zoom3" }
         for p in pts { s += String(format: "|%.5f,%.5f", p.lat, p.lon) }
         var h: UInt64 = 0xcbf29ce484222325
         for b in s.utf8 { h ^= UInt64(b); h = h &* 0x100000001b3 }
@@ -93,33 +109,32 @@ nonisolated enum MapProjection {
     }
 }
 
-/// Stats-strip text, pure.
+/// Stats-strip text, pure. Two fixed rows; the strip uppercases them.
 nonisolated enum OverviewStatsFormat {
-    /// "4 stops", "8.4 km", "5 h 20 min", "walk, taxi" (max 3 then +N). km omitted when nil/zero.
-    static func items(_ s: StatsModel) -> [String] {
+    /// Row 1: "4 stops", "8.4 km", "5½ hours". km omitted when nil/zero.
+    static func primaryRow(_ s: StatsModel) -> [String] {
         var out = ["\(s.stops) \(s.stops == 1 ? "stop" : "stops")"]
         if let km = s.km, km > 0 { out.append(kmText(km)) }
-        out.append(StatsFormat.hoursText(minutes: s.totalMinutes))
-        if !s.modes.isEmpty {
-            let shown = s.modes.prefix(3).joined(separator: ", ")
-            out.append(s.modes.count > 3 ? "\(shown) +\(s.modes.count - 3)" : shown)
-        }
+        out.append(TravelFormat.hours(minutes: s.totalMinutes))
+        return out
+    }
+
+    /// Row 2: "travel 1 hour", "taxi, auto, walk +1". Empty when there was no travel and no known mode.
+    static func secondaryRow(_ s: StatsModel) -> [String] {
+        var out: [String] = []
+        if let t = travelText(s) { out.append(t) }
+        if let modes = TravelFormat.modeList(raws: s.modes) { out.append(modes.lowercased()) }
         return out
     }
 
     static func travelText(_ s: StatsModel) -> String? {
-        s.travelMinutes > 0 ? "travel \(duration(s.travelMinutes))" : nil
+        s.travelMinutes > 0 ? "travel \(TravelFormat.hours(minutes: s.travelMinutes))" : nil
     }
 
-    static func kmText(_ km: Double) -> String { String(format: "%.1f km", (km * 10).rounded() / 10) }
+    static func kmText(_ km: Double) -> String { TravelFormat.km(km) }
 
-    static func duration(_ minutes: Int) -> String {
-        let m = max(0, minutes)
-        let h = m / 60, r = m % 60
-        if h == 0 { return "\(r) min" }
-        if r == 0 { return "\(h) h" }
-        return "\(h) h \(r) min"
-    }
+    /// One leg's time ("1 h 5 min").
+    static func duration(_ minutes: Int) -> String { TravelFormat.legDuration(minutes: minutes) }
 }
 
 /// Pin badge de-overlap. Anchors (true positions) stay on the route line; the numbered badge may be
@@ -168,7 +183,7 @@ nonisolated enum OverviewLegsFormat {
         model.legs.enumerated().compactMap { i, leg in
             guard model.stops.indices.contains(i + 1) else { return nil }
             var parts: [String] = []
-            if let m = StoryViewerLogic.modeName(leg.modeRaw) { parts.append(m.lowercased()) }
+            if let m = TravelFormat.modeName(raw: leg.modeRaw) { parts.append(m.lowercased()) }
             if let min = leg.minutes { parts.append(OverviewStatsFormat.duration(min)) }
             if let km = leg.km, km > 0 { parts.append(OverviewStatsFormat.kmText(km)) }
             guard !parts.isEmpty else { return nil }

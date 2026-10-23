@@ -21,6 +21,7 @@ struct StopContent: Equatable {
     var review: String?
     var costAmount: Decimal?
     var costCurrency: String?
+    var exportHidden: Bool?
 
     @MainActor
     init(_ s: Stop) {
@@ -28,6 +29,7 @@ struct StopContent: Equatable {
         address = s.address; cityHint = s.cityHint; arrivalTime = s.arrivalTime
         timeSpentMinutes = s.timeSpentMinutes; categoryRaw = s.categoryRaw; highlight = s.highlight
         ratingRaw = s.ratingRaw; review = s.review; costAmount = s.costAmount; costCurrency = s.costCurrency
+        exportHidden = s.exportHidden
     }
 
     @MainActor
@@ -36,6 +38,7 @@ struct StopContent: Equatable {
         s.address = address; s.cityHint = cityHint; s.arrivalTime = arrivalTime
         s.timeSpentMinutes = timeSpentMinutes; s.categoryRaw = categoryRaw; s.highlight = highlight
         s.ratingRaw = ratingRaw; s.review = review; s.costAmount = costAmount; s.costCurrency = costCurrency
+        s.exportHidden = exportHidden
     }
 }
 

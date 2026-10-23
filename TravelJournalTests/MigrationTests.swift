@@ -21,7 +21,7 @@ final class MigrationTests: XCTestCase {
         ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
     }
 
-    func testV1StoreMigratesToV3() throws {
+    func testV1StoreMigratesToV4() throws {
         let url = try tempDir().appendingPathComponent("store.sqlite")
         let id: UUID
 
@@ -35,7 +35,7 @@ final class MigrationTests: XCTestCase {
             try ctx.save()
         }
 
-        let schema = Schema(versionedSchema: TJSchemaV3.self)
+        let schema = Schema(versionedSchema: TJSchemaV4.self)
         let c = try ModelContainer(for: schema, migrationPlan: TJMigrationPlan.self, configurations: [config(schema, url)])
         let all = try ModelContext(c).fetch(FetchDescriptor<Journey>())
         XCTAssertEqual(all.count, 1)
@@ -43,6 +43,36 @@ final class MigrationTests: XCTestCase {
         XCTAssertEqual(all.first?.title, "Old Trip")
         XCTAssertEqual(all.first?.city, "Mumbai")
         XCTAssertNil(all.first?.country)
+    }
+
+    func testV3StoreMigratesToV4WithNoPrivacyOverrides() throws {
+        let url = try tempDir().appendingPathComponent("store.sqlite")
+        let stopID: UUID
+        do {
+            let schema = Schema(versionedSchema: TJSchemaV3.self)
+            let c = try ModelContainer(for: schema, configurations: [config(schema, url)])
+            let ctx = ModelContext(c)
+            let j = TJSchemaV3.Journey(title: "V3 Trip", city: "Mumbai")
+            let s = TJSchemaV3.Stop(placeName: "Hotel")
+            s.categoryRaw = StopCategory.stay.rawValue
+            s.journey = j
+            j.stopsStorage = [s]
+            ctx.insert(j)
+            stopID = s.id
+            try ctx.save()
+        }
+
+        let schema = Schema(versionedSchema: TJSchemaV4.self)
+        let c = try ModelContainer(for: schema, migrationPlan: TJMigrationPlan.self, configurations: [config(schema, url)])
+        let ctx = ModelContext(c)
+        let j = try XCTUnwrap(try ctx.fetch(FetchDescriptor<Journey>()).first)
+        XCTAssertEqual(j.title, "V3 Trip")
+        XCTAssertNil(j.exportPrivacyData)
+        XCTAssertNil(j.exportPrivacy)
+        let s = try XCTUnwrap(j.stops.first)
+        XCTAssertEqual(s.id, stopID)
+        XCTAssertEqual(s.category, .stay)
+        XCTAssertNil(s.exportHidden)
     }
 
     func testV2PhotoFilesMoveIntoModelAndAreDeleted() throws {
@@ -77,7 +107,7 @@ final class MigrationTests: XCTestCase {
 
         TJMigrationPlan.photoBaseURL = base
         defer { TJMigrationPlan.photoBaseURL = nil }
-        let schema = Schema(versionedSchema: TJSchemaV3.self)
+        let schema = Schema(versionedSchema: TJSchemaV4.self)
         let c = try ModelContainer(for: schema, migrationPlan: TJMigrationPlan.self, configurations: [config(schema, url)])
         let ctx = ModelContext(c)
 

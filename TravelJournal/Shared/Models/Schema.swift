@@ -3,10 +3,11 @@ import ImageIO
 import OSLog
 import SwiftData
 
-// TJSchemaV1 and TJSchemaV2 (frozen snapshots) live in SchemaV1Snapshot.swift / SchemaV2Snapshot.swift.
+// TJSchemaV1...V3 (frozen snapshots) live in SchemaV1Snapshot.swift / SchemaV2Snapshot.swift / SchemaV3Snapshot.swift.
 
-enum TJSchemaV3: VersionedSchema {
-    static var versionIdentifier = Schema.Version(3, 0, 0)
+/// V4 adds the export privacy columns: `Journey.exportPrivacyData` and `Stop.exportHidden` (both optional).
+enum TJSchemaV4: VersionedSchema {
+    static var versionIdentifier = Schema.Version(4, 0, 0)
     static var models: [any PersistentModel.Type] { [Journey.self, Stop.self, StopPhoto.self, Leg.self] }
 }
 
@@ -14,13 +15,14 @@ enum TJMigrationPlan: SchemaMigrationPlan {
     /// Directory holding `Photos/` for the V2→V3 file import. `nil` = the default Application Support location.
     nonisolated(unsafe) static var photoBaseURL: URL?
 
-    static var schemas: [any VersionedSchema.Type] { [TJSchemaV1.self, TJSchemaV2.self, TJSchemaV3.self] }
+    static var schemas: [any VersionedSchema.Type] { [TJSchemaV1.self, TJSchemaV2.self, TJSchemaV3.self, TJSchemaV4.self] }
     static var stages: [MigrationStage] {
         [
             .lightweight(fromVersion: TJSchemaV1.self, toVersion: TJSchemaV2.self),
             .custom(fromVersion: TJSchemaV2.self, toVersion: TJSchemaV3.self,
                     willMigrate: { context in try PhotoFileMigration.stage(in: context, baseURL: photoBaseURL) },
                     didMigrate: { context in try PhotoFileMigration.finish(in: context, baseURL: photoBaseURL) }),
+            .lightweight(fromVersion: TJSchemaV3.self, toVersion: TJSchemaV4.self),
         ]
     }
 }
@@ -75,7 +77,7 @@ nonisolated enum PhotoFileMigration {
         let base = baseURL ?? defaultBaseURL
         let dir = stagingDirectory(base)
         var done: [URL] = []
-        for photo in try context.fetch(FetchDescriptor<StopPhoto>()) where photo.imageData == nil {
+        for photo in try context.fetch(FetchDescriptor<TJSchemaV3.StopPhoto>()) where photo.imageData == nil {
             let image = dir.appendingPathComponent("\(photo.id.uuidString).jpg")
             let noteURL = dir.appendingPathComponent("\(photo.id.uuidString).json")
             guard let data = try? Data(contentsOf: image),
@@ -115,7 +117,7 @@ enum AppContainer {
     /// Opens the real on-disk store. Throws on failure (including a failed migration); never falls back to memory
     /// and never deletes or resets the existing store.
     static func open(cloudKit: Bool) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: TJSchemaV3.self)
+        let schema = Schema(versionedSchema: TJSchemaV4.self)
         let cfg = cloudKit
             ? ModelConfiguration(schema: schema, cloudKitDatabase: .private(cloudKitContainerID))
             : ModelConfiguration(schema: schema, cloudKitDatabase: .none)
@@ -129,7 +131,7 @@ enum AppContainer {
 
     /// In-memory container for previews and tests (and `-uitest`). Not used for real data.
     static func openInMemory() throws -> ModelContainer {
-        let schema = Schema(versionedSchema: TJSchemaV3.self)
+        let schema = Schema(versionedSchema: TJSchemaV4.self)
         let cfg = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         return try ModelContainer(for: schema, configurations: [cfg])
     }

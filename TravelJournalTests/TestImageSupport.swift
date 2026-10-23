@@ -1,4 +1,5 @@
 import SwiftUI
+import XCTest
 import CoreGraphics
 import ImageIO
 import PDFKit
@@ -75,5 +76,89 @@ enum TestImages {
             ctx.translateBy(x: -box.minX, y: -box.minY)
             ctx.drawPDFPage(ref)
         }
+    }
+}
+
+// MARK: Snapshot references
+
+/// Compares `image` with `TravelJournalTests/__Snapshots__/<name>-<platform>.png` (platform = ios / macos, since text
+/// renders differently). Passes when at most `tolerance` (0...1) of the pixels differ by more than `pixelThreshold`
+/// on any RGBA channel. Records the reference instead (and fails, so a fresh recording is never a silent pass) when
+/// it is missing or when `RECORD_SNAPSHOTS=1` is set; from xcodebuild use `TEST_RUNNER_RECORD_SNAPSHOTS=1`.
+/// On a mismatch the actual image is written to the temporary directory and its path is in the failure message.
+func assertSnapshot(_ image: CGImage, named name: String, tolerance: Double = 0.001, pixelThreshold: UInt8 = 16,
+                    file: StaticString = #filePath, line: UInt = #line) {
+    let url = Snapshots.referenceURL(named: name)
+    let record = ProcessInfo.processInfo.environment["RECORD_SNAPSHOTS"] == "1"
+    guard !record, let reference = Snapshots.load(url) else {
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            guard let data = ImageDrawing.pngData(image) else { throw CocoaError(.fileWriteUnknown) }
+            try data.write(to: url)
+            XCTFail("Snapshot \"\(name)\" recorded at \(url.path). Check it by eye, then re-run.", file: file, line: line)
+        } catch {
+            XCTFail("Snapshot \"\(name)\" could not be recorded at \(url.path): \(error)", file: file, line: line)
+        }
+        return
+    }
+    guard reference.width == image.width, reference.height == image.height else {
+        let actual = Snapshots.writeFailure(image, named: name)
+        XCTFail("Snapshot \"\(name)\" size \(image.width)x\(image.height) != reference \(reference.width)x\(reference.height). "
+                + "Actual: \(actual.path)", file: file, line: line)
+        return
+    }
+    let a = Snapshots.rgba(image), b = Snapshots.rgba(reference)
+    var differing = 0
+    for i in stride(from: 0, to: a.count, by: 4) {
+        for k in 0..<4 where (a[i + k] > b[i + k] ? a[i + k] - b[i + k] : b[i + k] - a[i + k]) > pixelThreshold {
+            differing += 1
+            break
+        }
+    }
+    let fraction = Double(differing) / Double(max(image.width * image.height, 1))
+    if fraction > tolerance {
+        let actual = Snapshots.writeFailure(image, named: name)
+        XCTFail(String(format: "Snapshot \"%@\": %.3f%% of pixels differ (allowed %.3f%%). Actual: %@",
+                       name, fraction * 100, tolerance * 100, actual.path), file: file, line: line)
+    }
+}
+
+enum Snapshots {
+    /// `TravelJournalTests/__Snapshots__`, found from this source file's path.
+    static let directory = URL(fileURLWithPath: "\(#filePath)").deletingLastPathComponent()
+        .appendingPathComponent("__Snapshots__", isDirectory: true)
+
+    static var platform: String {
+        #if os(macOS)
+        "macos"
+        #else
+        "ios"
+        #endif
+    }
+
+    static func referenceURL(named name: String) -> URL {
+        directory.appendingPathComponent("\(name)-\(platform).png")
+    }
+
+    static func load(_ url: URL) -> CGImage? {
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(src, 0, nil)
+    }
+
+    static func writeFailure(_ image: CGImage, named name: String) -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("snapshot-\(name)-\(platform)-actual.png")
+        TestImages.writePNG(image, to: url)
+        return url
+    }
+
+    /// Premultiplied RGBA bytes in sRGB, row 0 at the top.
+    static func rgba(_ cg: CGImage) -> [UInt8] {
+        let w = cg.width, h = cg.height
+        var buf = [UInt8](repeating: 0, count: w * h * 4)
+        if let ctx = CGContext(data: &buf, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                               space: ImageDrawing.sRGB, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
+            ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+        }
+        return buf
     }
 }

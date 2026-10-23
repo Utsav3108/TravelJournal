@@ -15,6 +15,8 @@ final class Journey {
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
     var schemaTag: Int = 1
+    /// JSON-encoded `ExportPrivacy` override for this journey; nil = use the global defaults (V4). Use `exportPrivacy`.
+    var exportPrivacyData: Data?
 
     /// CloudKit requires to-many relationships to be optional. `originalName` keeps the V2 column ("stops") so the
     /// migration treats this as a rename, not a new relationship. Use `stops`.

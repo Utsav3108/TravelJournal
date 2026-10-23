@@ -22,6 +22,8 @@ final class Stop {
     var review: String?
     var costAmount: Decimal?
     var costCurrency: String?
+    /// Per-stop export override (V4): true = always hidden, false = always shown, nil = follow the category rule.
+    var exportHidden: Bool?
 
     /// CloudKit requires to-many relationships to be optional. `originalName` keeps the V2 column ("photos") so the
     /// migration treats this as a rename, not a new relationship. Use `photos`.

@@ -19,16 +19,38 @@ nonisolated enum PrivacyFilter {
     typealias Leg = JourneySnapshot.LegSnapshot
 
     static func apply(_ snapshot: Snapshot, _ privacy: ExportPrivacy) -> Snapshot {
-        var out = snapshot
-        let hidden = snapshot.stops.map(privacy.isHidden)
+        var out = removingStops(snapshot, where: snapshot.stops.map(privacy.isHidden))
+        if privacy.hideCosts {
+            for i in out.stops.indices { out.stops[i].cost = nil }
+        }
+        if privacy.hideExactTimes {
+            let tz = snapshot.timeZone
+            for i in out.stops.indices {
+                out.stops[i].timeOfDay = out.stops[i].arrivalTime.map { .bucket(dayPart(for: $0, in: tz)) }
+                out.stops[i].arrivalTime = nil
+            }
+        }
+        out.totals = Snapshot.Totals(stops: out.stops, legs: out.legs)
+        out.mapMode = privacy.mapMode
+        return out
+    }
 
-        // Stops and legs. Legs between two visible stops collect every original leg in between.
+    // MARK: Removing stops
+
+    /// Drops the stops where `removed[i]` is true and merges the legs either side (see `mergedLeg`), keeping the
+    /// leg invariant. A cover photo that belonged to a removed stop falls back to the first remaining hero (or nil).
+    /// Recomputes `totals`. Used by `apply` (hidden stops) and by `ExportOptions` (stops left out of an export).
+    static func removingStops(_ snapshot: Snapshot, where removed: [Bool]) -> Snapshot {
+        precondition(removed.count == snapshot.stops.count)
+        var out = snapshot
+
+        // Legs between two kept stops collect every original leg in between.
         var stops: [Snapshot.StopSnapshot] = []
         var legs: [Leg] = []
-        var pending: [Leg] = []   // legs since the last visible stop
+        var pending: [Leg] = []   // legs since the last kept stop
         for (i, stop) in snapshot.stops.enumerated() {
             if i > 0, i - 1 < snapshot.legs.count { pending.append(snapshot.legs[i - 1]) }
-            guard !hidden[i] else { continue }
+            guard !removed[i] else { continue }
             if let last = stops.last, !pending.isEmpty {
                 legs.append(mergedLeg(pending, from: last.id, to: stop.id))
             }
@@ -36,27 +58,15 @@ nonisolated enum PrivacyFilter {
             stops.append(stop)
         }
 
-        if privacy.hideCosts {
-            for i in stops.indices { stops[i].cost = nil }
-        }
-        if privacy.hideExactTimes {
-            let tz = snapshot.timeZone
-            for i in stops.indices {
-                stops[i].timeOfDay = stops[i].arrivalTime.map { .bucket(dayPart(for: $0, in: tz)) }
-                stops[i].arrivalTime = nil
-            }
-        }
-
-        // Cover: never a hidden stop's photo.
-        let hiddenPhotoIDs = Set(zip(snapshot.stops, hidden).filter(\.1).flatMap { $0.0.photos.map(\.id) })
-        if let cover = out.coverPhotoID, hiddenPhotoIDs.contains(cover) {
+        // Cover: never a removed stop's photo.
+        let removedPhotoIDs = Set(zip(snapshot.stops, removed).filter(\.1).flatMap { $0.0.photos.map(\.id) })
+        if let cover = out.coverPhotoID, removedPhotoIDs.contains(cover) {
             out.coverPhotoID = stops.lazy.compactMap(\.hero).first?.id
         }
 
         out.stops = stops
         out.legs = legs
         out.totals = Snapshot.Totals(stops: stops, legs: legs)
-        out.mapMode = privacy.mapMode
         return out
     }
 

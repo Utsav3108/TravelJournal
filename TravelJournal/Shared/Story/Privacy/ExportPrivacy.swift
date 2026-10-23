@@ -11,12 +11,19 @@ nonisolated struct ExportPrivacy: Codable, Hashable, Sendable {
     var hideCosts: Bool = false
     var hideExactTimes: Bool = false
     var mapMode: MapMode = .show
+    /// Draw the "Made with TravelJournal" stamp on the closing page / last slide / closing frame.
+    var showBrandStamp: Bool = true
+    /// Author written into the export (PDF info). nil = no author at all; never defaults to the app name.
+    var authorName: String?
 
-    init(hideStayStops: Bool = true, hideCosts: Bool = false, hideExactTimes: Bool = false, mapMode: MapMode = .show) {
+    init(hideStayStops: Bool = true, hideCosts: Bool = false, hideExactTimes: Bool = false, mapMode: MapMode = .show,
+         showBrandStamp: Bool = true, authorName: String? = nil) {
         self.hideStayStops = hideStayStops
         self.hideCosts = hideCosts
         self.hideExactTimes = hideExactTimes
         self.mapMode = mapMode
+        self.showBrandStamp = showBrandStamp
+        self.authorName = authorName
     }
 
     /// Missing keys (data saved by an older build) keep their defaults; an unknown map mode falls back to `.show`.
@@ -27,6 +34,8 @@ nonisolated struct ExportPrivacy: Codable, Hashable, Sendable {
         hideCosts = try c.decodeIfPresent(Bool.self, forKey: .hideCosts) ?? d.hideCosts
         hideExactTimes = try c.decodeIfPresent(Bool.self, forKey: .hideExactTimes) ?? d.hideExactTimes
         mapMode = (try? c.decodeIfPresent(MapMode.self, forKey: .mapMode)) ?? d.mapMode
+        showBrandStamp = try c.decodeIfPresent(Bool.self, forKey: .showBrandStamp) ?? d.showBrandStamp
+        authorName = try c.decodeIfPresent(String.self, forKey: .authorName) ?? d.authorName
     }
 
     // MARK: Stop rule

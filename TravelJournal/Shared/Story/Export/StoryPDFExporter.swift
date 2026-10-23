@@ -54,22 +54,26 @@ final class StoryPDFExporter {
         return s + ".pdf"
     }
 
-    /// The privacy-filtered snapshot the PDF is drawn from.
-    func snapshot(for journey: Journey) -> JourneySnapshot {
-        let privacy = ExportPrivacy.resolved(for: journey, defaults: privacyDefaults)
-        return PrivacyFilter.apply(JourneySnapshot(journey: journey), privacy)
+    /// The privacy-filtered snapshot the PDF is drawn from. `privacy` nil = the journey's resolved settings;
+    /// `includedStopIDs` nil = every stop (see `ExportOptions.snapshot(for:)`).
+    func snapshot(for journey: Journey, privacy: ExportPrivacy? = nil,
+                  includedStopIDs: Set<UUID>? = nil) -> JourneySnapshot {
+        let privacy = privacy ?? ExportPrivacy.resolved(for: journey, defaults: privacyDefaults)
+        return ExportOptions(format: .pdf, privacy: privacy, includedStopIDs: includedStopIDs).snapshot(for: journey)
     }
 
     /// The composed pages for `journey` (cover, map, stop pages, closing).
-    func document(for journey: Journey) -> (snapshot: JourneySnapshot, document: ComposedDocument) {
-        let s = snapshot(for: journey)
+    func document(for journey: Journey, privacy: ExportPrivacy? = nil,
+                  includedStopIDs: Set<UUID>? = nil) -> (snapshot: JourneySnapshot, document: ComposedDocument) {
+        let s = snapshot(for: journey, privacy: privacy, includedStopIDs: includedStopIDs)
         return (s, composer.compose(s, spec: spec))
     }
 
     /// Throws `CancellationError` (leaving no file) if the surrounding task is cancelled.
-    func export(_ journey: Journey) async throws -> URL {
+    /// `privacy` / `includedStopIDs` as in `snapshot(for:privacy:includedStopIDs:)`.
+    func export(_ journey: Journey, privacy: ExportPrivacy? = nil, includedStopIDs: Set<UUID>? = nil) async throws -> URL {
         guard !journey.orderedStops.isEmpty else { throw StoryPDFExportError.noStops }
-        let (snapshot, document) = document(for: journey)
+        let (snapshot, document) = document(for: journey, privacy: privacy, includedStopIDs: includedStopIDs)
         guard !snapshot.stops.isEmpty else { throw StoryPDFExportError.allStopsHidden }
         let slices = document.slices
         let total = slices.count
@@ -89,13 +93,7 @@ final class StoryPDFExporter {
 
         // 2. Preload every photo so the synchronous render finds it cached (downsampled to 1200 px).
         let provider = PDFImageProvider(source: journey.modelContext.map(ModelPhotoSource.init(context:)))
-        for slice in slices {
-            for photo in Self.photos(of: slice, in: snapshot) {
-                _ = provider.image(for: photo, preferThumbnail: false)
-            }
-            try Task.checkCancellation()
-            await Task.yield()
-        }
+        try await provider.preload(slices.map { Self.photos(of: $0, in: snapshot) })
 
         // 3. Render each slice at exactly its size (pages never grow).
         let dir = outputDirectory ?? FileManager.default.temporaryDirectory
@@ -158,15 +156,20 @@ final class StoryPDFExporter {
     }
 }
 
-/// Print-time photo provider. Downsamples to 1200 px, re-encodes as JPEG and hands back an image backed by
+/// Print-time photo provider. Downsamples to `maxPixel` (PDF: 1200 px), re-encodes as JPEG and hands back an image backed by
 /// the JPEG data, so Core Graphics embeds it in the PDF as DCT (JPEG) instead of a Flate-compressed bitmap
 /// (which made an 8-photo PDF ~19 MB). Preloaded before rendering; `image(for:)` is a cache lookup.
 /// 1200 px still prints the largest photo (the 300 pt cover polaroid) at about 290 dpi, and keeps an 8-stop PDF
 /// (20 embedded photos, cover heroes repeat) under 4.4 MB.
 @MainActor
 final class PDFImageProvider: StoryImageProvider {
+    /// PDF defaults. Image exports pass their own (e.g. long edge of the largest photo frame x renderScale).
     static let maxPixel = 1200
     static let quality: CGFloat = 0.75
+
+    /// Longest side every photo is downsampled to, and the JPEG quality it is re-encoded at.
+    let maxPixel: Int
+    let quality: CGFloat
 
     /// The same image backed by JPEG data, so the PDF embeds it as DCT rather than a Flate bitmap (the route map
     /// snapshot was ~2 MB as Flate). Returns `cg` unchanged when encoding fails.
@@ -181,9 +184,24 @@ final class PDFImageProvider: StoryImageProvider {
     private let cache = DecodedImageCache()
 
     /// `source` is nil for a journey that isn't in a context (nothing to read, so every photo is a placeholder).
-    init(source: StoryPhotoSource?) { self.source = source }
+    init(source: StoryPhotoSource?, maxPixel: Int = PDFImageProvider.maxPixel,
+         quality: CGFloat = PDFImageProvider.quality) {
+        self.source = source
+        self.maxPixel = maxPixel
+        self.quality = quality
+    }
 
-    /// Print always uses the full print resolution, whatever the caller asked for.
+    /// Decodes and caches every photo before a synchronous `ImageRenderer` pass, one group (e.g. one slice) at a time,
+    /// checking for cancellation and yielding between groups. Throws `CancellationError`.
+    func preload(_ groups: [[StoryPhoto]]) async throws {
+        for group in groups {
+            for photo in group { _ = lookup(photo) }
+            try Task.checkCancellation()
+            await Task.yield()
+        }
+    }
+
+    /// Always the preload resolution (`maxPixel`), whatever the caller asked for.
     nonisolated func image(for photo: StoryPhoto, preferThumbnail: Bool, maxPixel: Int) -> CGImage? {
         MainActor.assumeIsolated { lookup(photo) }
     }
@@ -198,7 +216,7 @@ final class PDFImageProvider: StoryImageProvider {
     /// Downsample, JPEG-encode, decode the JPEG back. The encode keeps the source colour space (Display P3 stays P3),
     /// so the DCT data embedded in the PDF carries the same profile as the photo.
     private func load(_ data: Data) -> CGImage? {
-        guard let cg = ImageDecoding.cgImage(from: data, maxPixel: Self.maxPixel) else { return nil }
-        return Self.jpegBacked(cg, quality: Self.quality)
+        guard let cg = ImageDecoding.cgImage(from: data, maxPixel: maxPixel) else { return nil }
+        return Self.jpegBacked(cg, quality: quality)
     }
 }

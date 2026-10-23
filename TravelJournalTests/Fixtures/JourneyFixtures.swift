@@ -26,6 +26,7 @@ enum JourneyFixtures {
         var photos: Int
         var story: String = "A short note about this place."
         var cost: Cost?
+        var highlight: String?
     }
 
     static let timeZoneID = "Asia/Kolkata"
@@ -98,6 +99,31 @@ enum JourneyFixtures {
         ])
     }
 
+    /// Twelve photo-heavy stops (3 or 4 photos each, every other story 100 words), no Stay stop so default privacy
+    /// keeps all twelve. Meant to need more than 20 carousel slides: with cover + map + closing that takes an average
+    /// of more than 1.5 slides per stop, which these heavy stops are expected to need (agent F: confirm, and add
+    /// stops here if the horizontal composer fits them tighter).
+    static func twelveStops() -> Fixture {
+        let names = ["Chhatrapati Shivaji Terminus", "Crawford Market", "Mumbadevi Temple", "Zaveri Bazaar",
+                     "Kala Ghoda Art Precinct", "Gateway of India", "Colaba Causeway", "Haji Ali Dargah",
+                     "Mahalaxmi Dhobi Ghat", "Worli Sea Face", "Bandra Bandstand", "Juhu Beach"]
+        let categories: [StopCategory] = [.landmark, .shopping, .temple, .shopping, .landmark, .landmark,
+                                          .food, .temple, .landmark, .nature, .landmark, .food]
+        return make(names.indices.map { i in
+            StopSpec(name: names[i], category: categories[i], photos: 3 + i % 2,
+                     story: i % 2 == 0 ? hundredWordStory : "A short note about this place.",
+                     highlight: i % 3 == 0 ? "The light at golden hour" : nil)
+        })
+    }
+
+    /// One stop at the limits of a Story frame: 100-word story, 4 photos, a long place name and a highlight.
+    static func storyStressStop() -> Fixture {
+        make([StopSpec(name: "Chhatrapati Shivaji Maharaj Vastu Sangrahalaya (Prince of Wales Museum)",
+                       category: .landmark, photos: 4, story: hundredWordStory,
+                       cost: Cost(amount: 700, currency: "INR"),
+                       highlight: "Stood in front of the Ashoka pillar replica for a full ten minutes")])
+    }
+
     // MARK: Builder
 
     static let modes: [TransportMode] = [.taxi, .walk, .autoRickshaw, .localTrain, .bus, .metro, .ferry]
@@ -128,6 +154,7 @@ enum JourneyFixtures {
             s.timeSpentMinutes = 30 + (i % 3) * 15
             s.rating = i % 5 + 1
             s.cost = spec.cost
+            if let h = spec.highlight { s.highlight = h }
             editor.addStop(s, to: j)
             for p in 0..<spec.photos {
                 let photo = StopPhoto(orderIndex: p, isHero: p == 0)

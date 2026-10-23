@@ -63,6 +63,8 @@ private struct OptionToggle: View {
 struct JourneyExportPrivacySection: View {
     let journey: Journey
     var defaults: ExportPrivacyDefaults = .standard
+    /// Not read directly: observing the key re-renders the section when the defaults change elsewhere.
+    @AppStorage(ExportPrivacyDefaults.key) private var defaultsChanged: Data?
 
     var body: some View {
         Section {
@@ -112,6 +114,8 @@ struct StopExportVisibilitySection: View {
     @Bindable var stop: Stop
     let journey: Journey
     var defaults: ExportPrivacyDefaults = .standard
+    /// Not read directly: observing the key re-renders the section when the defaults change elsewhere.
+    @AppStorage(ExportPrivacyDefaults.key) private var defaultsChanged: Data?
 
     var body: some View {
         let state = StopExportVisibility(stop: stop, privacy: ExportPrivacy.resolved(for: journey, defaults: defaults))

@@ -38,6 +38,7 @@ struct StoryMapTests {
         #expect(a == MapProjection.cacheKey([cst, sid], size: s, scale: 2))
         #expect(a != MapProjection.cacheKey([sid, cst], size: s, scale: 2))
         #expect(a != MapProjection.cacheKey([cst, sid], size: s, scale: 3))
+        #expect(a != MapProjection.cacheKey([cst, sid], size: s, scale: 2.5))
         #expect(a != MapProjection.cacheKey([cst, sid], size: CGSize(width: 300, height: 200), scale: 2))
         #expect(a == "\(a)" && !a.isEmpty)
     }

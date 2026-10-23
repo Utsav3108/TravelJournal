@@ -82,7 +82,8 @@ nonisolated enum MapProjection {
     /// Stable disk-cache key (FNV-1a over rounded coordinates, size, scale and zoom). Zoomed-out keys
     /// differ from normal ones; normal keys match earlier builds, so existing caches stay valid.
     static func cacheKey(_ pts: [GeoPoint], size: CGSize, scale: CGFloat, zoomedOut: Bool = false) -> String {
-        var s = "v2|\(Int(size.width.rounded()))x\(Int(size.height.rounded()))@\(Int(scale))"
+        let scaleText = scale == scale.rounded() ? "\(Int(scale))" : String(format: "%.2f", scale)
+        var s = "v2|\(Int(size.width.rounded()))x\(Int(size.height.rounded()))@\(scaleText)"
         if zoomedOut { s += "|zoom3" }
         for p in pts { s += String(format: "|%.5f,%.5f", p.lat, p.lon) }
         var h: UInt64 = 0xcbf29ce484222325

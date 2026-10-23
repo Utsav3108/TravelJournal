@@ -9,7 +9,7 @@ nonisolated enum StatsFormat {
         var joined: String { "\(numeral) \(unit)" }
     }
 
-    /// 0 -> "0 HOURS"; 1...14 -> "10 MIN"; 15...44 -> "½ HOUR"; 45...74 -> "1 HOUR"; 156 -> "2½ HOURS"; 291 -> "5 HOURS".
+    /// 0 -> "0 HOURS"; 1...14 -> "<n> MIN"; 15...44 -> "½ HOUR"; 45...74 -> "1 HOUR"; 156 -> "2½ HOURS"; 291 -> "5 HOURS".
     static func hours(minutes: Int) -> Hours {
         let p = TravelFormat.hoursParts(minutes: minutes)
         return Hours(numeral: p.numeral, unit: p.unit.uppercased())

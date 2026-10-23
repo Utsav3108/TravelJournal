@@ -185,6 +185,16 @@ final class StoryExportTests: XCTestCase {
         catch StoryPDFExportError.noStops {}
     }
 
+    func testAllStopsHiddenThrows() async throws {
+        let j = Journey(title: "Hotel Only"); context.insert(j)
+        let editor = JourneyEditor(context: context, photos: NoopPhotoStore())
+        let s = Stop(placeName: "Hotel check-in", story: "Keys, then a nap.")
+        s.exportHidden = true
+        editor.addStop(s, to: j)
+        do { _ = try await exporter().export(j); XCTFail("expected error") }
+        catch StoryPDFExportError.allStopsHidden {}
+    }
+
     func testFileNameSanitising() {
         let f = StoryPDFExporter.fileName(forTitle:)
         XCTAssertEqual(f("A Day in Mumbai"), "A Day in Mumbai.pdf")

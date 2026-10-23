@@ -50,7 +50,7 @@ nonisolated enum PrivacyFilter {
         // Cover: never a hidden stop's photo.
         let hiddenPhotoIDs = Set(zip(snapshot.stops, hidden).filter(\.1).flatMap { $0.0.photos.map(\.id) })
         if let cover = out.coverPhotoID, hiddenPhotoIDs.contains(cover) {
-            out.coverPhotoID = stops.first?.hero?.id ?? stops.lazy.compactMap(\.hero).first?.id
+            out.coverPhotoID = stops.lazy.compactMap(\.hero).first?.id
         }
 
         out.stops = stops

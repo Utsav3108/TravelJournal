@@ -6,11 +6,13 @@ import UniformTypeIdentifiers
 
 enum StoryPDFExportError: LocalizedError {
     case noStops
+    case allStopsHidden
     case cannotCreateFile
 
     var errorDescription: String? {
         switch self {
         case .noStops: "Add at least one stop before exporting a PDF."
+        case .allStopsHidden: "Every stop is hidden from public exports. Show at least one stop under Export privacy."
         case .cannotCreateFile: "The PDF file could not be created."
         }
     }
@@ -68,6 +70,7 @@ final class StoryPDFExporter {
     func export(_ journey: Journey) async throws -> URL {
         guard !journey.orderedStops.isEmpty else { throw StoryPDFExportError.noStops }
         let (snapshot, document) = document(for: journey)
+        guard !snapshot.stops.isEmpty else { throw StoryPDFExportError.allStopsHidden }
         let slices = document.slices
         let total = slices.count
         progress?(0, total)
@@ -148,7 +151,7 @@ final class StoryPDFExporter {
         case .stops:
             return slice.blocks.flatMap { b -> [StoryPhoto] in
                 guard case .stop(let i, _) = b.content, i < snapshot.stops.count else { return [] }
-                return snapshot.stops[i].photos.prefix(4).map { StoryPhoto(id: $0.id.uuidString, isHero: $0.isHero) }
+                return snapshot.stopPageModel(i).photos
             }
         case .map, .closing: return []
         }

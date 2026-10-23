@@ -37,7 +37,7 @@ final class PrivacyFilterTests: XCTestCase {
         XCTAssertEqual(out.legs[0].minutes, 28)
         XCTAssertEqual(out.legs[0].mode, .walk)
         XCTAssertEqual(out.legs[0].id, s.legs[0].id)
-        XCTAssertEqual(out.legs[0].story, "Leg 1: the driver knew a shortcut.")
+        XCTAssertNil(out.legs[0].story, "a merged leg may describe the hidden stop")
 
         // Totals: no hotel stop, photo, minutes or cost.
         XCTAssertEqual(out.totals, Snap.Totals(stops: out.stops, legs: out.legs))
@@ -89,7 +89,7 @@ final class PrivacyFilterTests: XCTestCase {
         XCTAssertEqual(out.legs[2].km, 10.0)
         XCTAssertEqual(out.legs[2].minutes, 44)
         XCTAssertEqual(out.legs[2].mode, .localTrain)
-        XCTAssertEqual(out.legs[2].story, "Leg 3: the driver knew a shortcut.")
+        XCTAssertNil(out.legs[2].story, "a merged leg may describe the hidden stop")
         XCTAssertEqual(Array(out.legs[0..<2]), Array(s.legs[0..<2]))
         XCTAssertEqual(Array(out.legs[3...]), Array(s.legs[4...]))
         XCTAssertEqual(out.totals.photos, s.totals.photos - 1)
@@ -109,7 +109,7 @@ final class PrivacyFilterTests: XCTestCase {
         XCTAssertEqual(merged.km, 4.5 + 5.5 + 6.5)
         XCTAssertEqual(merged.minutes, 20 + 24 + 28)
         XCTAssertEqual(merged.mode, .bus)
-        XCTAssertEqual(merged.story, "Leg 3: the driver knew a shortcut.\n\nLeg 5: the driver knew a shortcut.")
+        XCTAssertNil(merged.story, "a merged leg may describe the hidden stop")
     }
 
     func testHiddenFirstStopDropsItsLeg() {
@@ -169,14 +169,13 @@ final class PrivacyFilterTests: XCTestCase {
         XCTAssertEqual(m.minutes, 63)
         XCTAssertEqual(m.fromStopID, a)
         XCTAssertEqual(m.toStopID, b)
-        // No modes, no minutes, partial km, stories skip empties.
+        // No modes, no minutes, partial km, stories dropped.
         let n = PrivacyFilter.mergedLeg([leg(nil, 2, nil, "One."), leg(nil, nil, nil, "  "), leg(nil, nil, nil, "Two.")],
                                         from: a, to: b)
         XCTAssertNil(n.mode)
         XCTAssertEqual(n.km, 2)
         XCTAssertNil(n.minutes)
-        XCTAssertEqual(n.story, "One.\n\nTwo.")
-        XCTAssertNil(PrivacyFilter.mergedLeg([leg(nil, nil, nil), leg(nil, nil, nil)], from: a, to: b).story)
+        XCTAssertNil(n.story)
     }
 
     // MARK: Costs, times, map

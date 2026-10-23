@@ -67,7 +67,7 @@ nonisolated enum PrivacyFilter {
     /// - km / minutes: summed over the parts that have them, nil only when none do;
     /// - mode: from the part with the most minutes among those with a chosen mode (nil minutes count as 0,
     ///   ties go to the earlier part); nil when no part has a mode;
-    /// - story: the non-empty stories joined with a blank line; nil when none.
+    /// - story: nil. The legs into and out of a hidden stop often describe it ("checked into the Taj").
     static func mergedLeg(_ parts: [Leg], from: UUID, to: UUID) -> Leg {
         precondition(!parts.isEmpty)
         if parts.count == 1 {
@@ -81,11 +81,10 @@ nonisolated enum PrivacyFilter {
         for p in parts where p.mode != nil {
             if best == nil || (p.minutes ?? 0) > (best!.minutes ?? 0) { best = p }
         }
-        let stories = parts.compactMap(\.story).filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         return Leg(id: parts[0].id, fromStopID: from, toStopID: to, mode: best?.mode,
                    km: kms.isEmpty ? nil : kms.reduce(0, +),
                    minutes: mins.isEmpty ? nil : mins.reduce(0, +),
-                   story: stories.isEmpty ? nil : stories.joined(separator: "\n\n"))
+                   story: nil)
     }
 
     // MARK: Time buckets

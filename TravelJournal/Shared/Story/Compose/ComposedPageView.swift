@@ -26,7 +26,8 @@ struct ComposedPageView: View {
         Group {
             switch slice.kind {
             case .cover: CoverPage(model: snapshot.coverModel, metrics: metrics)
-            case .map: RouteOverviewPage(model: snapshot.overviewModel, metrics: metrics, snap: mapSnap, isLoading: false)
+            case .map: RouteOverviewPage(model: snapshot.overviewModel, metrics: metrics, snap: mapSnap, isLoading: false,
+                                         mapMode: snapshot.mapMode)
             case .closing: ClosingPage(model: snapshot.closingModel, metrics: metrics)
             case .stops: stopsPage
             }

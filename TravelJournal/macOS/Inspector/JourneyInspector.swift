@@ -41,8 +41,6 @@ private struct JourneyInspectorForm: View {
         }
         .calmForm()
         .undoTracked(JourneyContent(journey), target: journey) { $0.apply(to: journey) }
-        // `JourneyContent` does not carry the export privacy override, so it gets its own undo steps.
-        .undoTracked(journey.exportPrivacyData, target: journey) { journey.exportPrivacyData = $0 }
         .accessibilityIdentifier("journeyInspector")
     }
 }

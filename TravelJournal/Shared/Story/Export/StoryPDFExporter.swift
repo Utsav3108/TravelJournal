@@ -78,7 +78,7 @@ final class StoryPDFExporter {
         if slices.contains(where: { $0.kind == .map }) {
             // 2.5x (180 dpi), embedded as JPEG: as a Flate bitmap at 3x the map alone was ~2 MB.
             var map = await snapshots.snapshot(for: snapshot.overviewModel, size: MapSnapshotService.mapSize(for: metrics),
-                                               scale: 2.5)
+                                               scale: 2.5, mapMode: snapshot.mapMode)
             map.image = PDFImageProvider.jpegBacked(map.image, quality: 0.8)
             snap = map
         }

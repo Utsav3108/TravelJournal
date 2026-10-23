@@ -140,8 +140,4 @@ final class ExportPrivacyTests: XCTestCase {
         XCTAssertEqual(f.snapshot.stops.map(on.isHidden), [true, false, false])
     }
 
-    func testPrivacyFilterStubReturnsInput() {
-        let s = JourneyFixtures.fourStops().snapshot
-        XCTAssertEqual(PrivacyFilter.apply(s, ExportPrivacy()).stops.count, s.stops.count)
-    }
 }

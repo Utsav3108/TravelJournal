@@ -87,16 +87,7 @@ enum EditorLogic {
     }
 
     static func modeName(_ m: TransportMode) -> String {
-        switch m {
-        case .walk: "Walk"
-        case .autoRickshaw: "Auto-rickshaw"
-        case .taxi: "Taxi"
-        case .bus: "Bus"
-        case .localTrain: "Local train"
-        case .metro: "Metro"
-        case .bike: "Bike"
-        case .ferry: "Ferry"
-        }
+        TravelFormat.modeName(m)
     }
 
     /// "taxi · 18 min · 5.2 km", or nil when the leg has nothing to show.

@@ -40,26 +40,35 @@ final class MapSnapshotService {
         return (pts, idx)
     }
 
-    func snapshot(for model: OverviewModel, size: CGSize, scale: CGFloat = 2) async -> MapSnap {
+    /// `.zoomedOut` (and, defensively, `.hidden`) widens the region by `MapProjection.zoomOutFactor`
+    /// around the same centre and caches under its own key; `.show` is the tight fit.
+    nonisolated static func isZoomedOut(_ mode: ExportPrivacy.MapMode) -> Bool { mode != .show }
+
+    func snapshot(for model: OverviewModel, size: CGSize, scale: CGFloat = 2,
+                  mapMode: ExportPrivacy.MapMode = .show) async -> MapSnap {
         let (pts, idx) = Self.geoPoints(of: model)
-        return await snapshot(points: pts, stopIndices: idx, size: size, scale: scale)
+        return await snapshot(points: pts, stopIndices: idx, size: size, scale: scale, mapMode: mapMode)
     }
 
-    func snapshot(points: [GeoPoint], stopIndices: [Int]? = nil, size: CGSize, scale: CGFloat = 2) async -> MapSnap {
+    func snapshot(points: [GeoPoint], stopIndices: [Int]? = nil, size: CGSize, scale: CGFloat = 2,
+                  mapMode: ExportPrivacy.MapMode = .show) async -> MapSnap {
         let idx = stopIndices ?? Array(points.indices)
-        guard !points.isEmpty else { return Self.fallback(points: points, stopIndices: idx, size: size) }
-        let key = MapProjection.cacheKey(points, size: size, scale: scale)
+        let zoomed = Self.isZoomedOut(mapMode)
+        guard !points.isEmpty else { return Self.fallback(points: points, stopIndices: idx, size: size, mapMode: mapMode) }
+        let key = MapProjection.cacheKey(points, size: size, scale: scale, zoomedOut: zoomed)
         if let hit = memory[key] { return hit }
         if let hit = loadFromDisk(key: key, points: points, stopIndices: idx, size: size, scale: scale) {
             memory[key] = hit
             return hit
         }
         if let t = failedAt[key], Date().timeIntervalSince(t) < retryAfter {
-            return Self.fallback(points: points, stopIndices: idx, size: size)
+            return Self.fallback(points: points, stopIndices: idx, size: size, mapMode: mapMode)
         }
         do {
             let snap = try await withThrowingTaskGroup(of: MapSnap.self) { group in
-                group.addTask { @MainActor in try await self.takeSnapshot(points: points, stopIndices: idx, size: size, scale: scale) }
+                group.addTask { @MainActor in
+                    try await self.takeSnapshot(points: points, stopIndices: idx, size: size, scale: scale, zoomedOut: zoomed)
+                }
                 group.addTask { @MainActor in
                     try await Task.sleep(for: self.timeout)
                     throw CancellationError()
@@ -74,28 +83,36 @@ final class MapSnapshotService {
             return snap
         } catch {
             failedAt[key] = Date()
-            return Self.fallback(points: points, stopIndices: idx, size: size)
+            return Self.fallback(points: points, stopIndices: idx, size: size, mapMode: mapMode)
         }
     }
 
     /// Illustrated fallback with pins laid out proportionally. Synchronous (no network).
-    static func fallback(for model: OverviewModel, size: CGSize) -> MapSnap {
+    /// Zoomed out, the pins gather toward the centre as they would on the wider map.
+    static func fallback(for model: OverviewModel, size: CGSize, mapMode: ExportPrivacy.MapMode = .show) -> MapSnap {
         let (pts, idx) = geoPoints(of: model)
-        return fallback(points: pts, stopIndices: idx, size: size)
+        return fallback(points: pts, stopIndices: idx, size: size, mapMode: mapMode)
     }
 
-    static func fallback(points: [GeoPoint], stopIndices: [Int], size: CGSize) -> MapSnap {
+    static func fallback(points: [GeoPoint], stopIndices: [Int], size: CGSize, mapMode: ExportPrivacy.MapMode = .show) -> MapSnap {
         let seed = MapProjection.cacheKey(points, size: size, scale: 1)
         let scale = IllustratedMapFallback.defaultScale
+        var pins = MapProjection.fallbackPoints(points, size: size)
+        if isZoomedOut(mapMode) { pins = MapProjection.shrinkTowardCentre(pins, size: size) }
         return MapSnap(image: IllustratedMapFallback.render(size: size, seed: seed, scale: scale), scale: scale,
-                       pins: MapProjection.fallbackPoints(points, size: size),
-                       size: size, stopIndices: stopIndices, isFallback: true)
+                       pins: pins, size: size, stopIndices: stopIndices, isFallback: true)
     }
 
     // MARK: MapKit
 
-    private func takeSnapshot(points: [GeoPoint], stopIndices: [Int], size: CGSize, scale: CGFloat) async throws -> MapSnap {
-        guard let r = MapProjection.fitRegion(points, aspect: size.width / size.height) else { throw CancellationError() }
+    /// The MapKit region for these points: the tight fit, or widened when zoomed out. Nil when empty.
+    nonisolated static func region(for points: [GeoPoint], size: CGSize, zoomedOut: Bool) -> MapProjection.Region? {
+        guard let r = MapProjection.fitRegion(points, aspect: size.width / max(size.height, 1)) else { return nil }
+        return zoomedOut ? MapProjection.widened(r) : r
+    }
+
+    private func takeSnapshot(points: [GeoPoint], stopIndices: [Int], size: CGSize, scale: CGFloat, zoomedOut: Bool) async throws -> MapSnap {
+        guard let r = Self.region(for: points, size: size, zoomedOut: zoomedOut) else { throw CancellationError() }
         let o = MKMapSnapshotter.Options()
         o.region = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: r.centerLat, longitude: r.centerLon),
                                       span: MKCoordinateSpan(latitudeDelta: r.latSpan, longitudeDelta: r.lonSpan))

@@ -4,17 +4,22 @@ import SwiftUI
 /// and the list of stops (those without coordinates are marked "not on the map").
 /// Pure view: all assets arrive via `snap` (nil -> illustrated fallback computed inline), so it renders
 /// synchronously in ImageRenderer / PDF. Callbacks are ignored in print mode.
+/// `mapMode` should match the mode `snap` was taken with: `.zoomedOut` draws smaller pins without the
+/// exact anchor dots and leader lines (`.hidden` is drawn like `.zoomedOut`; exporters drop the page instead).
 struct RouteOverviewPage: View {
     var model: OverviewModel
     var metrics: PageMetrics
     var snap: MapSnap?
     var isLoading: Bool = false
+    var mapMode: ExportPrivacy.MapMode = .show
     var onPinTap: ((String) -> Void)?
     var onLegTap: ((StoryLeg) -> Void)?
 
     private var interactive: Bool { metrics.mode == .interactive }
+    private var zoomedOut: Bool { MapSnapshotService.isZoomedOut(mapMode) }
+    private var pinDiameter: CGFloat { zoomedOut ? 20 : PinLayout.diameter }
     private var mapSize: CGSize { MapSnapshotService.mapSize(for: metrics) }
-    private var resolved: MapSnap { snap ?? MapSnapshotService.fallback(for: model, size: mapSize) }
+    private var resolved: MapSnap { snap ?? MapSnapshotService.fallback(for: model, size: mapSize, mapMode: mapMode) }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -86,15 +91,18 @@ struct RouteOverviewPage: View {
         let pts = snap.pins.map { CGPoint(x: $0.x * sx, y: $0.y * sy) }
         let indices = snap.stopIndices.count == pts.count ? snap.stopIndices : Array(pts.indices)
         let segs = MapProjection.segments(located: indices, legCount: model.legs.count)
-        let badges = PinLayout.badges(anchors: pts, bounds: size)
+        let badges = PinLayout.badges(anchors: pts, bounds: size, diameter: pinDiameter)
+        let line = Path { p in
+            guard let f = pts.first else { return }
+            p.move(to: f)
+            for q in pts.dropFirst() { p.addLine(to: q) }
+        }
         ZStack {
-            // Vector route line.
-            Path { p in
-                guard let f = pts.first else { return }
-                p.move(to: f)
-                for q in pts.dropFirst() { p.addLine(to: q) }
+            // Vector route line over a solid paper halo, so it reads over map labels.
+            ZStack {
+                line.stroke(KraftColor.paper.opacity(0.9), style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                line.stroke(KraftColor.route, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round, dash: [7, 5]))
             }
-            .stroke(KraftColor.route, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round, dash: [7, 5]))
             .accessibilityHidden(true)
 
             // Invisible, NON-dashed 28pt leg hit areas (interactive only).
@@ -111,25 +119,29 @@ struct RouteOverviewPage: View {
                 }
             }
 
-            // Anchor dots (true positions) + leader lines for badges that were moved.
-            ForEach(Array(pts.enumerated()), id: \.offset) { k, pt in
-                let b = badges[k]
-                if hypot(b.x - pt.x, b.y - pt.y) > 1 {
-                    Path { p in p.move(to: pt); p.addLine(to: b) }
-                        .stroke(KraftColor.route, style: StrokeStyle(lineWidth: 1, lineCap: .round))
+            // Anchor dots (true positions) + leader lines for badges that were moved, each over a paper
+            // halo. Zoomed out, positions are deliberately approximate: badges only.
+            if !zoomedOut {
+                ForEach(Array(pts.enumerated()), id: \.offset) { k, pt in
+                    let b = badges[k]
+                    if hypot(b.x - pt.x, b.y - pt.y) > 1 {
+                        let leader = Path { p in p.move(to: pt); p.addLine(to: b) }
+                        leader.stroke(KraftColor.paper.opacity(0.9), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        leader.stroke(KraftColor.route, style: StrokeStyle(lineWidth: 1, lineCap: .round))
+                    }
+                    Circle().fill(KraftColor.route).frame(width: 6, height: 6)
+                        .background(Circle().fill(KraftColor.paper).frame(width: 10, height: 10))
+                        .position(pt)
                 }
-                Circle().fill(KraftColor.route).frame(width: 6, height: 6)
-                    .overlay(Circle().stroke(KraftColor.polaroidWhite, lineWidth: 1))
-                    .position(pt)
+                .accessibilityHidden(true)
             }
-            .accessibilityHidden(true)
 
             ForEach(Array(pts.enumerated()), id: \.offset) { k, _ in
                 let stopIdx = indices[k]
                 if model.stops.indices.contains(stopIdx) {
                     let stop = model.stops[stopIdx]
                     pin(number: stop.number)
-                        .frame(width: 32, height: 32)
+                        .frame(width: pinDiameter + 6, height: pinDiameter + 6)
                         .contentShape(Rectangle())
                         .onTapGesture { if interactive { onPinTap?(stop.id) } }
                         .allowsHitTesting(interactive && onPinTap != nil)
@@ -142,14 +154,17 @@ struct RouteOverviewPage: View {
         }
     }
 
+    /// Numbered badge inside a paper ring (the halo) so it separates from map labels.
     private func pin(number: Int) -> some View {
-        Text("\(number)")
-            .font(KraftFont.label(13))
+        let d = pinDiameter
+        return Text("\(number)")
+            .font(KraftFont.label(zoomedOut ? 11 : 13))
             .foregroundStyle(KraftColor.polaroidWhite)
-            .frame(width: 26, height: 26)
+            .frame(width: d, height: d)
             .background(Circle().fill(KraftColor.route))
             .overlay(Circle().stroke(KraftColor.polaroidWhite, lineWidth: 1.5))
-            .shadow(color: KraftColor.shadow, radius: 1.5, y: 1)
+            .background(Circle().fill(KraftColor.paper).frame(width: d + 5, height: d + 5)
+                .shadow(color: KraftColor.shadow, radius: 1.5, y: 1))
     }
 
     // MARK: Legs summary (print)
@@ -206,20 +221,18 @@ struct RouteOverviewPage: View {
 
 // MARK: Stats strip
 
-/// Typewriter stats band: "4 STOPS · 8.4 KM · 5 H 20 MIN · WALK, TAXI" plus travel time on a second line.
+/// Typewriter stats band, two fixed rows: "4 STOPS · 8.4 KM · 5½ HOURS" over "TRAVEL 1 HOUR · TAXI, AUTO".
+/// Each row is one line; a long row shrinks rather than wrapping.
 struct OverviewStatsStrip: View {
     var stats: StatsModel
 
     var body: some View {
-        let items = OverviewStatsFormat.items(stats)
-        let travel = OverviewStatsFormat.travelText(stats)
+        let primary = OverviewStatsFormat.primaryRow(stats)
+        let secondary = OverviewStatsFormat.secondaryRow(stats)
         VStack(spacing: 3) {
-            ViewThatFits(in: .horizontal) {
-                Text(items.joined(separator: " · ")).lineLimit(1).fixedSize()
-                Text(items.joined(separator: " · ")).multilineTextAlignment(.center)
-            }
-            if let travel {
-                Text(travel).foregroundStyle(KraftColor.inkSoft)
+            row(primary)
+            if !secondary.isEmpty {
+                row(secondary).foregroundStyle(KraftColor.inkSoft)
             }
         }
         .stampLabel()
@@ -231,7 +244,14 @@ struct OverviewStatsStrip: View {
         .overlay(alignment: .top) { dashed }
         .overlay(alignment: .bottom) { dashed }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel((items + [travel].compactMap { $0 }).joined(separator: ", "))
+        .accessibilityLabel((primary + secondary).joined(separator: ", "))
+    }
+
+    private func row(_ items: [String]) -> some View {
+        Text(items.joined(separator: " · "))
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .frame(maxWidth: .infinity)
     }
 
     private var dashed: some View {
@@ -246,16 +266,19 @@ struct RouteOverviewPageLoader: View {
     var model: OverviewModel
     var metrics: PageMetrics
     var service: MapSnapshotService = .shared
+    var mapMode: ExportPrivacy.MapMode = .show
     var onPinTap: ((String) -> Void)?
     var onLegTap: ((StoryLeg) -> Void)?
     @State private var snap: MapSnap?
 
+    private struct LoadKey: Equatable { var model: OverviewModel; var mapMode: ExportPrivacy.MapMode }
+
     var body: some View {
         RouteOverviewPage(model: model, metrics: metrics, snap: snap, isLoading: snap == nil && hasCoordinates,
-                          onPinTap: onPinTap, onLegTap: onLegTap)
-            .task(id: model) {
+                          mapMode: mapMode, onPinTap: onPinTap, onLegTap: onLegTap)
+            .task(id: LoadKey(model: model, mapMode: mapMode)) {
                 let size = MapSnapshotService.mapSize(for: metrics)
-                snap = await service.snapshot(for: model, size: size, scale: metrics.mode == .print ? 3 : 2)
+                snap = await service.snapshot(for: model, size: size, scale: metrics.mode == .print ? 3 : 2, mapMode: mapMode)
             }
     }
 
@@ -304,6 +327,11 @@ enum OverviewSamples {
 #Preview("Overview, phone") {
     ScrollView { RouteOverviewPageLoader(model: OverviewSamples.partial, metrics: .phone(CGSize(width: 390, height: 800)),
                                          onPinTap: { _ in }, onLegTap: { _ in }) }
+}
+
+#Preview("Overview, A4 zoomed out") {
+    RouteOverviewPageLoader(model: OverviewSamples.mumbai, metrics: .a4, mapMode: .zoomedOut)
+        .scaleEffect(0.6, anchor: .topLeading).frame(width: 357, height: 505, alignment: .topLeading)
 }
 
 #Preview("No coordinates") {

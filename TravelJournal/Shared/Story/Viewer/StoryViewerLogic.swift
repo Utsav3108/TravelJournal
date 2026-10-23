@@ -42,30 +42,12 @@ nonisolated enum StoryViewerLogic {
 
     // MARK: Leg card
 
-    static func modeName(_ raw: String?) -> String? {
-        guard let raw else { return nil }
-        switch raw {
-        case "walk": return "Walk"
-        case "autoRickshaw", "auto-rickshaw": return "Auto-rickshaw"
-        case "taxi": return "Taxi"
-        case "bus": return "Bus"
-        case "localTrain", "train": return "Local train"
-        case "metro": return "Metro"
-        case "bike": return "Bike"
-        case "ferry": return "Ferry"
-        default: return nil
-        }
-    }
+    /// "Auto", "Local train", ... (accepts TransportMode and legacy KraftTransport raws).
+    static func modeName(_ raw: String?) -> String? { TravelFormat.modeName(raw: raw) }
 
-    static func kmText(_ km: Double?) -> String? {
-        guard let km else { return nil }
-        return (km == km.rounded() ? String(Int(km)) : String(format: "%.1f", km)) + " km"
-    }
+    static func kmText(_ km: Double?) -> String? { km.map(TravelFormat.km) }
 
-    static func minutesText(_ m: Int?) -> String? {
-        guard let m else { return nil }
-        return m >= 60 ? (m % 60 == 0 ? "\(m / 60) h" : "\(m / 60) h \(m % 60) min") : "\(m) min"
-    }
+    static func minutesText(_ m: Int?) -> String? { m.map { TravelFormat.legDuration(minutes: $0) } }
 
     struct LegCardText: Equatable {
         var title: String

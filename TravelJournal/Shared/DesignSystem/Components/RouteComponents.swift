@@ -1,32 +1,26 @@
 import SwiftUI
 
-/// Pure formatting helpers (unit-testable).
+/// Pure formatting helpers (unit-testable). Wording comes from `TravelFormat`.
 enum KraftFormat {
-    /// "taxi · 18 min · 5.2 km"; missing parts are omitted.
+    /// "auto · 20 min · 6 km", "taxi · 1 h 5 min · 5.2 km"; missing parts are omitted. Lower case:
+    /// print callers uppercase it.
     static func legLabel(mode: KraftTransport?, minutes: Int?, km: Double?) -> String {
         var parts: [String] = []
-        if let mode { parts.append(mode.rawValue) }
-        if let minutes { parts.append("\(minutes) min") }
-        if let km { parts.append(String(format: "%.1f km", km)) }
+        if let mode, let name = TravelFormat.modeName(raw: mode.rawValue) { parts.append(name.lowercased()) }
+        if let minutes { parts.append(TravelFormat.legDuration(minutes: minutes)) }
+        if let km { parts.append(TravelFormat.km(km)) }
         return parts.joined(separator: " · ")
     }
 
-    /// 320 -> "5 h 20 min", 45 -> "45 min".
-    static func duration(minutes: Int) -> String {
-        let h = minutes / 60, m = minutes % 60
-        if h == 0 { return "\(m) min" }
-        if m == 0 { return "\(h) h" }
-        return "\(h) h \(m) min"
-    }
+    /// One leg's time: 65 -> "1 h 5 min", 45 -> "45 min".
+    static func duration(minutes: Int) -> String { TravelFormat.legDuration(minutes: minutes) }
 
+    /// "4 stops", "8.4 km", "5½ hours", "taxi, auto".
     static func statsLine(stops: Int, km: Double, minutes: Int, modes: [KraftTransport]) -> [String] {
         var items = ["\(stops) \(stops == 1 ? "stop" : "stops")",
-                     String(format: "%.1f km", km),
-                     duration(minutes: minutes)]
-        if !modes.isEmpty {
-            let shown = modes.prefix(3).map(\.rawValue).joined(separator: ", ")
-            items.append(modes.count > 3 ? "\(shown) +\(modes.count - 3)" : shown)
-        }
+                     TravelFormat.km(km),
+                     TravelFormat.hours(minutes: minutes)]
+        if let list = TravelFormat.modeList(raws: modes.map(\.rawValue)) { items.append(list.lowercased()) }
         return items
     }
 }

@@ -10,6 +10,7 @@ struct JourneyShelfView: View {
     @State private var path: [AppRoute] = []
     @State private var showCreate = false
     @State private var showPlaces = false
+    @State private var showSettings = false
     @State private var pendingDelete: Journey?
     @State private var query = ""
     /// Value snapshots for the library screens; rebuilt when the data or the navigation stack changes, not per render.
@@ -23,6 +24,10 @@ struct JourneyShelfView: View {
             }
             .navigationTitle("My Stories")
             .toolbar {
+                ToolbarItem(placement: .navigation) {
+                    Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
+                        .accessibilityIdentifier("openSettings")
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showCreate = true } label: { Label("New story", systemImage: "plus") }
                         .accessibilityIdentifier("newStoryToolbar")
@@ -39,11 +44,12 @@ struct JourneyShelfView: View {
             .appDestinations()
             #if DEBUG
             .task {
-                // Debug launch args: -openSample (journey detail), -openSampleStop (stop editor)
+                // Debug launch args: -openSample (journey detail), -openSampleStop (stop editor), -openSettings
                 // -seedSample (one story), -seedLibrary N (N stories across countries)
                 let args = ProcessInfo.processInfo.arguments
                 if args.contains("-seedSample"), journeys.isEmpty { SampleData.mumbai(in: context) }
                 SampleData.seedFromLaunchArguments(in: context)
+                if args.contains("-openSettings") { showSettings = true }   // debug aid
                 if let i = args.firstIndex(of: "-openRack") {
                     // -openRack N: India cover rack starting on its Nth story (debug aid)
                     let all = journeys.libraryStories
@@ -76,6 +82,7 @@ struct JourneyShelfView: View {
                 }
                 .preferredColorScheme(.light)
             }
+            .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(isPresented: $showCreate) {
                 CreateJourneyView { journey in open(journey) }
                 .preferredColorScheme(.light)

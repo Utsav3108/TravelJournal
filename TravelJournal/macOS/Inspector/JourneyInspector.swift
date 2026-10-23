@@ -35,10 +35,15 @@ private struct JourneyInspectorForm: View {
     let journey: Journey
 
     var body: some View {
-        Form { JourneyFieldsSection(journey: journey) }
-            .calmForm()
-            .undoTracked(JourneyContent(journey), target: journey) { $0.apply(to: journey) }
-            .accessibilityIdentifier("journeyInspector")
+        Form {
+            JourneyFieldsSection(journey: journey)
+            JourneyExportPrivacySection(journey: journey)
+        }
+        .calmForm()
+        .undoTracked(JourneyContent(journey), target: journey) { $0.apply(to: journey) }
+        // `JourneyContent` does not carry the export privacy override, so it gets its own undo steps.
+        .undoTracked(journey.exportPrivacyData, target: journey) { journey.exportPrivacyData = $0 }
+        .accessibilityIdentifier("journeyInspector")
     }
 }
 

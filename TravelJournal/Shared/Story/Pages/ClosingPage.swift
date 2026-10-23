@@ -139,3 +139,55 @@ struct SavePDFStamp: View {
         .accessibilityIdentifier("savePDF")
     }
 }
+
+// MARK: End marker
+
+/// Where the route finishes on the last stop page: a small flag planted on the route end and a "The End" stamp beside it
+/// (the double-ruled stamp style of `RatingStamp` / `SavePDFStamp`). The flag stands `flagInset` in from the leading
+/// edge, or from the trailing edge when `flagOnTrailing` (route lane on the right).
+struct RouteEndMarker: View {
+    var size: CGSize
+    var flagOnTrailing = false
+    var seed: String = "end"
+
+    static let flagInset: CGFloat = 6
+
+    var body: some View {
+        let flagX = flagOnTrailing ? size.width - Self.flagInset : Self.flagInset
+        let midY = size.height / 2
+        let stampW = size.width - 30
+        ZStack(alignment: .topLeading) {
+            Path { p in
+                p.move(to: CGPoint(x: flagX, y: midY)); p.addLine(to: CGPoint(x: flagX, y: midY - 26))
+            }
+            .stroke(KraftColor.route, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+            Path { p in
+                let dir: CGFloat = flagOnTrailing ? -1 : 1
+                p.move(to: CGPoint(x: flagX, y: midY - 26)); p.addLine(to: CGPoint(x: flagX + 15 * dir, y: midY - 21))
+                p.addLine(to: CGPoint(x: flagX, y: midY - 16)); p.closeSubpath()
+            }
+            .fill(KraftColor.route)
+            Circle().fill(KraftColor.route).frame(width: 7, height: 7).position(x: flagX, y: midY)
+            Text("The End")
+                .font(KraftFont.label(20))
+                .textCase(.uppercase)
+                .tracking(3)
+                .foregroundStyle(KraftColor.stampTeal)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .frame(width: stampW, height: size.height - 16)
+                .background(
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 6).stroke(KraftColor.stampTeal, lineWidth: 2)
+                        RoundedRectangle(cornerRadius: 6).stroke(KraftColor.stampTeal.opacity(0.6), lineWidth: 0.8).padding(3.5)
+                    }
+                )
+                .opacity(0.9)
+                .seededRotation(seed, limit: 3)
+                .placed(CGRect(x: flagOnTrailing ? 0 : size.width - stampW, y: 8, width: stampW, height: size.height - 16))
+        }
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("The End")
+    }
+}

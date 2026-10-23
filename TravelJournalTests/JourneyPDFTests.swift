@@ -43,7 +43,7 @@ final class JourneyPDFTests: XCTestCase {
         let a = try XCTUnwrap(PDFDocument(url: viaTransferable))
         let b = try XCTUnwrap(PDFDocument(url: direct))
         XCTAssertEqual(a.pageCount, b.pageCount)
-        XCTAssertEqual(a.pageCount, StoryLayout().pages(for: journey).count)
+        XCTAssertEqual(a.pageCount, exporter().document(for: journey).document.slices.count)
     }
 
     func testRenderReportsProgressToTheLastPage() async throws {

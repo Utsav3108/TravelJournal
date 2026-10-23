@@ -17,21 +17,28 @@ enum StoryPDFExportError: LocalizedError {
 }
 
 /// Renders a journey to ONE multi-page A4 PDF (595x842 pt, print mode). Text and shapes stay vector.
+///
+/// Pipeline: `JourneySnapshot(journey:)` -> `ExportPrivacy.resolved(for:)` -> `PrivacyFilter.apply` ->
+/// `VerticalComposer` (`.a4PDF`) -> one PDF page per composed slice, drawn at exactly the slice size.
 /// Order matters: the overview map is awaited and all photos are decoded BEFORE rendering because
 /// `ImageRenderer` renders synchronously and cannot wait for async loads.
 @MainActor
 final class StoryPDFExporter {
     static let appName = "TravelJournal"
 
-    private let layout = StoryLayout()
+    let spec = OutputSpec.a4PDF
+    private let composer = VerticalComposer()
     private let snapshots: MapSnapshotService
     private let outputDirectory: URL?
+    private let privacyDefaults: ExportPrivacyDefaults
     /// Called with (pagesRendered, totalPages). (0, n) fires before the first page.
     var progress: ((Int, Int) -> Void)?
 
-    init(snapshots: MapSnapshotService = .shared, outputDirectory: URL? = nil) {
+    init(snapshots: MapSnapshotService = .shared, outputDirectory: URL? = nil,
+         privacyDefaults: ExportPrivacyDefaults = .standard) {
         self.snapshots = snapshots
         self.outputDirectory = outputDirectory
+        self.privacyDefaults = privacyDefaults
     }
 
     /// "A Day in Mumbai" -> "A Day in Mumbai.pdf". Strips path/control characters; empty -> "Journey".
@@ -45,31 +52,49 @@ final class StoryPDFExporter {
         return s + ".pdf"
     }
 
+    /// The privacy-filtered snapshot the PDF is drawn from.
+    func snapshot(for journey: Journey) -> JourneySnapshot {
+        let privacy = ExportPrivacy.resolved(for: journey, defaults: privacyDefaults)
+        return PrivacyFilter.apply(JourneySnapshot(journey: journey), privacy)
+    }
+
+    /// The composed pages for `journey` (cover, map, stop pages, closing).
+    func document(for journey: Journey) -> (snapshot: JourneySnapshot, document: ComposedDocument) {
+        let s = snapshot(for: journey)
+        return (s, composer.compose(s, spec: spec))
+    }
+
     /// Throws `CancellationError` (leaving no file) if the surrounding task is cancelled.
     func export(_ journey: Journey) async throws -> URL {
         guard !journey.orderedStops.isEmpty else { throw StoryPDFExportError.noStops }
-        let pages = layout.pages(for: journey)
-        let total = pages.count
+        let (snapshot, document) = document(for: journey)
+        let slices = document.slices
+        let total = slices.count
         progress?(0, total)
+        let metrics = spec.pageMetrics
 
-        // 1. Overview map (never throws; falls back to the drawn map offline).
+        // 1. Overview map (never throws; falls back to the drawn map offline). Skipped when the map is hidden.
         var snap: MapSnap?
-        for case .overview(let model) in pages {
-            snap = await snapshots.snapshot(for: model, size: MapSnapshotService.mapSize(for: .a4), scale: 3)
+        if slices.contains(where: { $0.kind == .map }) {
+            // 2.5x (180 dpi), embedded as JPEG: as a Flate bitmap at 3x the map alone was ~2 MB.
+            var map = await snapshots.snapshot(for: snapshot.overviewModel, size: MapSnapshotService.mapSize(for: metrics),
+                                               scale: 2.5)
+            map.image = PDFImageProvider.jpegBacked(map.image, quality: 0.8)
+            snap = map
         }
         try Task.checkCancellation()
 
-        // 2. Preload every photo so the synchronous render finds it cached (downsampled to 1600 px).
+        // 2. Preload every photo so the synchronous render finds it cached (downsampled to 1200 px).
         let provider = PDFImageProvider(source: journey.modelContext.map(ModelPhotoSource.init(context:)))
-        for page in pages {
-            for photo in Self.photos(of: page) {
+        for slice in slices {
+            for photo in Self.photos(of: slice, in: snapshot) {
                 _ = provider.image(for: photo, preferThumbnail: false)
             }
             try Task.checkCancellation()
             await Task.yield()
         }
 
-        // 3. Render.
+        // 3. Render each slice at exactly its size (pages never grow).
         let dir = outputDirectory ?? FileManager.default.temporaryDirectory
             .appendingPathComponent("TravelJournalExport", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -77,7 +102,7 @@ final class StoryPDFExporter {
         let url = dir.appendingPathComponent(Self.fileName(forTitle: journey.title))
         try? FileManager.default.removeItem(at: url)
 
-        var box = CGRect(origin: .zero, size: PageMetrics.a4.size)
+        var box = CGRect(origin: .zero, size: spec.sliceSize)
         let info: [String: Any] = [
             kCGPDFContextTitle as String: journey.title,
             kCGPDFContextAuthor as String: Self.appName,
@@ -88,14 +113,13 @@ final class StoryPDFExporter {
             throw StoryPDFExportError.cannotCreateFile
         }
         do {
-            for (i, page) in pages.enumerated() {
+            for (i, slice) in slices.enumerated() {
                 try Task.checkCancellation()
-                let view = StoryPageView(page: page, metrics: .a4, overviewSnap: snap,
-                                         entryY: StopLayout.entryY(at: i, in: pages, metrics: .a4))
+                let view = ComposedPageView(slice: slice, snapshot: snapshot, spec: spec, mapSnap: snap)
                     .environment(\.storyImageProvider, provider)
-                    .frame(width: box.width, height: box.height)
+                    .frame(width: slice.size.width, height: slice.size.height)
                 let renderer = ImageRenderer(content: view)
-                renderer.proposedSize = ProposedViewSize(box.size)
+                renderer.proposedSize = ProposedViewSize(slice.size)
                 renderer.render { _, draw in
                     ctx.beginPDFPage(nil)
                     draw(ctx)
@@ -117,22 +141,38 @@ final class StoryPDFExporter {
         return url
     }
 
-    private static func photos(of page: StoryPage) -> [StoryPhoto] {
-        switch page {
-        case .cover(let m): m.heroPhotos
-        case .stop(let m): m.photos
-        case .overview, .closing: []
+    /// Photos a slice draws: the cover collage, or each stop block's first four (hero first).
+    static func photos(of slice: ComposedSlice, in snapshot: JourneySnapshot) -> [StoryPhoto] {
+        switch slice.kind {
+        case .cover: return snapshot.coverModel.heroPhotos
+        case .stops:
+            return slice.blocks.flatMap { b -> [StoryPhoto] in
+                guard case .stop(let i, _) = b.content, i < snapshot.stops.count else { return [] }
+                return snapshot.stops[i].photos.prefix(4).map { StoryPhoto(id: $0.id.uuidString, isHero: $0.isHero) }
+            }
+        case .map, .closing: return []
         }
     }
 }
 
-/// Print-time photo provider. Downsamples to 1600 px, re-encodes as JPEG and hands back an image backed by
+/// Print-time photo provider. Downsamples to 1200 px, re-encodes as JPEG and hands back an image backed by
 /// the JPEG data, so Core Graphics embeds it in the PDF as DCT (JPEG) instead of a Flate-compressed bitmap
 /// (which made an 8-photo PDF ~19 MB). Preloaded before rendering; `image(for:)` is a cache lookup.
+/// 1200 px still prints the largest photo (the 300 pt cover polaroid) at about 290 dpi, and keeps an 8-stop PDF
+/// (20 embedded photos, cover heroes repeat) under 4.4 MB.
 @MainActor
 final class PDFImageProvider: StoryImageProvider {
-    static let maxPixel = ModelStoryImageProvider.printMaxPixel
-    static let quality: CGFloat = 0.8
+    static let maxPixel = 1200
+    static let quality: CGFloat = 0.75
+
+    /// The same image backed by JPEG data, so the PDF embeds it as DCT rather than a Flate bitmap (the route map
+    /// snapshot was ~2 MB as Flate). Returns `cg` unchanged when encoding fails.
+    nonisolated static func jpegBacked(_ cg: CGImage, quality: CGFloat = 0.8) -> CGImage {
+        guard let data = ImageDrawing.jpegData(cg, quality: quality),
+              let jsrc = CGImageSourceCreateWithData(data as CFData, nil),
+              let jpeg = CGImageSourceCreateImageAtIndex(jsrc, 0, nil) else { return cg }
+        return jpeg
+    }
 
     private let source: StoryPhotoSource?
     private let cache = DecodedImageCache()
@@ -156,9 +196,6 @@ final class PDFImageProvider: StoryImageProvider {
     /// so the DCT data embedded in the PDF carries the same profile as the photo.
     private func load(_ data: Data) -> CGImage? {
         guard let cg = ImageDecoding.cgImage(from: data, maxPixel: Self.maxPixel) else { return nil }
-        guard let data = ImageDrawing.jpegData(cg, quality: Self.quality),
-              let jsrc = CGImageSourceCreateWithData(data as CFData, nil),
-              let jpegBacked = CGImageSourceCreateImageAtIndex(jsrc, 0, nil) else { return cg }
-        return jpegBacked
+        return Self.jpegBacked(cg, quality: Self.quality)
     }
 }

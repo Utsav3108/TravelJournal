@@ -82,18 +82,18 @@ final class StoryExportTests: XCTestCase {
         let j = SampleData.mumbai(in: context)
         let photoCount = try attachRealPhotos(j)
         XCTAssertGreaterThan(photoCount, 0)
-        let expected = StoryLayout().pages(for: j).count
-        XCTAssertEqual(expected, 7)
-
         var ticks: [(Int, Int)] = []
         let ex = exporter()
+        let expected = ex.document(for: j).document.slices.count
+        XCTAssertGreaterThanOrEqual(expected, 4, "cover, map, stop page(s), closing")
+
         ex.progress = { ticks.append(($0, $1)) }
         let url = try await ex.export(j)
 
         XCTAssertEqual(url.lastPathComponent, "A Day in Mumbai.pdf")
         XCTAssertEqual(ticks.first?.0, 0)
-        XCTAssertEqual(ticks.last?.0, 7)
-        XCTAssertEqual(ticks.last?.1, 7)
+        XCTAssertEqual(ticks.last?.0, expected)
+        XCTAssertEqual(ticks.last?.1, expected)
 
         let doc = try pdf(url)
         XCTAssertEqual(doc.pageCount, expected)
@@ -121,9 +121,10 @@ final class StoryExportTests: XCTestCase {
 
     func testMumbaiExportWithSamplePlaceholders() async throws {
         let j = SampleData.mumbai(in: context)
-        let url = try await exporter().export(j)
+        let ex = exporter()
+        let url = try await ex.export(j)
         let doc = try pdf(url)
-        XCTAssertEqual(doc.pageCount, 7)
+        XCTAssertEqual(doc.pageCount, ex.document(for: j).document.slices.count)
         XCTAssertTrue((doc.string ?? "").contains("Mumbai"))
     }
 
@@ -174,7 +175,7 @@ final class StoryExportTests: XCTestCase {
         let b = Stop(placeName: "Vagator", story: "More sunset."); b.latitude = 15.6; b.longitude = 73.74
         editor.addStop(b, to: j)
         let doc = try pdf(try await exporter().export(j))
-        XCTAssertEqual(doc.pageCount, 5)
+        XCTAssertEqual(doc.pageCount, 4)   // cover, overview, both short stops on one page, closing
         XCTAssertTrue((doc.string ?? "").contains("Vagator"))
     }
 

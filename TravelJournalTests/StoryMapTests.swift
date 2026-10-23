@@ -190,8 +190,19 @@ final class RouteOverviewSnapshotTests: XCTestCase {
     func testFourStopsA4() throws {
         let f = JourneyFixtures.fourStops()
         let model = try overview(f)
-        assertSnapshot(try render(model), named: "overview-fourStops-a4")
-        assertSnapshot(try render(model, mapMode: .zoomedOut), named: "overview-fourStops-a4-zoomedOut")
+        let shots = [("overview-fourStops-a4", try render(model)),
+                     ("overview-fourStops-a4-zoomedOut", try render(model, mapMode: .zoomedOut))]
+        #if os(macOS)
+        // The sandboxed macOS test host cannot write into the source tree, so it cannot record references
+        // (same as VerticalComposerTests). Keep copies in the host's temporary directory to record from by hand.
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("overview-snapshots", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        for (name, img) in shots { TestImages.writePNG(img, to: dir.appendingPathComponent("\(name)-macos.png")) }
+        if shots.contains(where: { !FileManager.default.fileExists(atPath: Snapshots.referenceURL(named: $0.0).path) }) {
+            throw XCTSkip("No macOS references yet for the overview page; copy them from the test host's tmp/overview-snapshots.")
+        }
+        #endif
+        for (name, img) in shots { assertSnapshot(img, named: name) }
     }
 
     /// Not asserted (network-dependent): with TEST_RUNNER_MAP_OUT=<dir>, writes the live MapKit page so the

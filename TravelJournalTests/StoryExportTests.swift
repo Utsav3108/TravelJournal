@@ -108,7 +108,9 @@ final class StoryExportTests: XCTestCase {
                       "stop name extractable")
         let attrs = doc.documentAttributes ?? [:]
         XCTAssertEqual(attrs[PDFDocumentAttribute.titleAttribute] as? String, "A Day in Mumbai")
-        XCTAssertEqual(attrs[PDFDocumentAttribute.authorAttribute] as? String, "TravelJournal")
+        XCTAssertNil(attrs[PDFDocumentAttribute.authorAttribute], "no author unless the user adds one")
+        XCTAssertEqual(attrs[PDFDocumentAttribute.creatorAttribute] as? String, "TravelJournal")
+        XCTAssertEqual(attrs[PDFDocumentAttribute.subjectAttribute] as? String, "Travel journal", "never the city")
 
         let size = try XCTUnwrap(try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int)
         print("EXPORT_SIZE_BYTES=\(size) photos=\(photoCount) pages=\(doc.pageCount)")

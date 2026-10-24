@@ -26,7 +26,7 @@ enum StoryPDFExportError: LocalizedError {
 /// `ImageRenderer` renders synchronously and cannot wait for async loads.
 @MainActor
 final class StoryPDFExporter {
-    static let appName = "TravelJournal"
+    nonisolated static let appName = "TravelJournal"
 
     let spec = OutputSpec.a4PDF
     private let composer = VerticalComposer()
@@ -45,13 +45,18 @@ final class StoryPDFExporter {
 
     /// "A Day in Mumbai" -> "A Day in Mumbai.pdf". Strips path/control characters; empty -> "Journey".
     nonisolated static func fileName(forTitle title: String) -> String {
+        baseName(forTitle: title) + ".pdf"
+    }
+
+    /// `fileName(forTitle:)` without the extension: safe as a file name stem ("Journey" when empty, max 80 characters).
+    nonisolated static func baseName(forTitle title: String) -> String {
         let bad = CharacterSet(charactersIn: "/\\:*?\"<>|%").union(.controlCharacters).union(.newlines)
         var s = title.unicodeScalars.map { bad.contains($0) ? " " : String($0) }.joined()
         s = s.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
         s = s.trimmingCharacters(in: CharacterSet(charactersIn: ". "))
         if s.isEmpty { s = "Journey" }
         if s.count > 80 { s = String(s.prefix(80)).trimmingCharacters(in: .whitespaces) }
-        return s + ".pdf"
+        return s
     }
 
     /// The privacy-filtered snapshot the PDF is drawn from. `privacy` nil = the journey's resolved settings;
@@ -73,6 +78,7 @@ final class StoryPDFExporter {
     /// `privacy` / `includedStopIDs` as in `snapshot(for:privacy:includedStopIDs:)`.
     func export(_ journey: Journey, privacy: ExportPrivacy? = nil, includedStopIDs: Set<UUID>? = nil) async throws -> URL {
         guard !journey.orderedStops.isEmpty else { throw StoryPDFExportError.noStops }
+        let privacy = privacy ?? ExportPrivacy.resolved(for: journey, defaults: privacyDefaults)
         let (snapshot, document) = document(for: journey, privacy: privacy, includedStopIDs: includedStopIDs)
         guard !snapshot.stops.isEmpty else { throw StoryPDFExportError.allStopsHidden }
         let slices = document.slices
@@ -104,13 +110,7 @@ final class StoryPDFExporter {
         try? FileManager.default.removeItem(at: url)
 
         var box = CGRect(origin: .zero, size: spec.sliceSize)
-        let info: [String: Any] = [
-            kCGPDFContextTitle as String: journey.title,
-            kCGPDFContextAuthor as String: Self.appName,
-            kCGPDFContextCreator as String: Self.appName,
-            kCGPDFContextSubject as String: journey.city ?? "Travel journal",
-        ]
-        guard let ctx = CGContext(url as CFURL, mediaBox: &box, info as CFDictionary) else {
+        guard let ctx = CGContext(url as CFURL, mediaBox: &box, Self.documentInfo(title: journey.title, privacy: privacy) as CFDictionary) else {
             throw StoryPDFExportError.cannotCreateFile
         }
         do {
@@ -118,6 +118,7 @@ final class StoryPDFExporter {
                 try Task.checkCancellation()
                 let view = ComposedPageView(slice: slice, snapshot: snapshot, spec: spec, mapSnap: snap)
                     .environment(\.storyImageProvider, provider)
+                    .environment(\.exportBrandStamp, privacy.showBrandStamp)
                     .frame(width: slice.size.width, height: slice.size.height)
                 let renderer = ImageRenderer(content: view)
                 renderer.proposedSize = ProposedViewSize(slice.size)
@@ -142,6 +143,16 @@ final class StoryPDFExporter {
         return url
     }
 
+    /// PDF document info: Title, Creator "TravelJournal" and a generic Subject (never the city). Author only when
+    /// the user typed one (`ExportPrivacy.authorName`); otherwise nothing identifying is written.
+    nonisolated static func documentInfo(title: String, privacy: ExportPrivacy) -> [String: String] {
+        var info = [kCGPDFContextTitle as String: title,
+                    kCGPDFContextCreator as String: appName,
+                    kCGPDFContextSubject as String: "Travel journal"]
+        if let author = privacy.pdfAuthor { info[kCGPDFContextAuthor as String] = author }
+        return info
+    }
+
     /// Photos a slice draws: the cover collage, or each stop block's first four (hero first).
     static func photos(of slice: ComposedSlice, in snapshot: JourneySnapshot) -> [StoryPhoto] {
         switch slice.kind {
@@ -164,8 +175,8 @@ final class StoryPDFExporter {
 @MainActor
 final class PDFImageProvider: StoryImageProvider {
     /// PDF defaults. Image exports pass their own (e.g. long edge of the largest photo frame x renderScale).
-    static let maxPixel = 1200
-    static let quality: CGFloat = 0.75
+    nonisolated static let maxPixel = 1200
+    nonisolated static let quality: CGFloat = 0.75
 
     /// Longest side every photo is downsampled to, and the JPEG quality it is re-encoded at.
     let maxPixel: Int

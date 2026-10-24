@@ -31,6 +31,32 @@ struct ExportPrivacyForm: View {
         } footer: {
             Text(ExportPrivacyCopy.detail(privacy.mapMode))
         }
+        Section {
+            OptionToggle(ExportPrivacyCopy.brandStamp, detail: ExportPrivacyCopy.brandStampDetail,
+                         isOn: $privacy.showBrandStamp, id: "privacyBrandStamp")
+            TextField(ExportPrivacyCopy.authorName, text: Binding(
+                get: { privacy.authorName ?? "" },
+                set: { privacy.authorName = ExportPrivacy.normalizedAuthorName($0) }),
+                      prompt: Text("None"))
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("privacyAuthorName")
+        } header: {
+            Text("Credits")
+        } footer: {
+            Text(ExportPrivacyCopy.authorFooter)
+        }
+    }
+}
+
+extension ExportPrivacy {
+    /// What the author field stores: nil when blank, otherwise the text as typed (trailing spaces kept while typing).
+    nonisolated static func normalizedAuthorName(_ text: String) -> String? {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : text
+    }
+
+    /// The author written into the PDF info, trimmed; nil = no Author field at all.
+    nonisolated var pdfAuthor: String? {
+        authorName.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.flatMap { $0.isEmpty ? nil : $0 }
     }
 }
 
@@ -177,8 +203,13 @@ nonisolated enum ExportPrivacyCopy {
     static let hideCostsDetail = "Prices and the total spent are left out."
     static let hideExactTimes = "Hide exact times"
     static let hideExactTimesDetail = "Times show as morning, afternoon or evening."
-    static let scopeFooter = "Applies to what you share, such as the PDF (and Instagram later). "
+    static let scopeFooter = "Applies to what you share: the PDF and Instagram posts. "
         + "Your journal itself keeps everything."
+    static let brandStamp = "Made with TravelJournal stamp"
+    static let brandStampDetail = "A small stamp on the last page, slide or frame."
+    static let authorName = "Author name (PDF only)"
+    static let authorFooter = "Written into the PDF's document info when you add one. "
+        + "Otherwise nothing that identifies you is embedded: no name, and no photo location or camera data."
     static let usesDefaultsFooter = "This story follows the export privacy in Settings."
     static let customFooter = "This story uses its own export privacy, below."
 

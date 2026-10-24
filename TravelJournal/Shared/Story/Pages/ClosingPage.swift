@@ -60,6 +60,7 @@ struct ClosingPage: View {
     var metrics: PageMetrics
     /// Interactive only (nil when printing): triggers the shared PDF export flow.
     var onSavePDF: (() -> Void)?
+    @Environment(\.exportBrandStamp) private var brandStamp
 
     var body: some View {
         let L = ClosingLayout.make(model, metrics: metrics)
@@ -104,10 +105,25 @@ struct ClosingPage: View {
             if let onSavePDF {
                 SavePDFStamp(action: onSavePDF, seed: "closing/\(model.seed)/pdf")
                     .padding(.bottom, 48)
+            } else if Self.showsBrandStamp(mode: metrics.mode, enabled: brandStamp) {
+                // Printed where the interactive "Save as PDF" stamp sits in the app.
+                MadeWithStamp(seed: "closing/\(model.seed)/made-with")
+                    .padding(.bottom, 52)
             }
         }
         .clipped()
     }
+
+    /// The brand stamp prints only in print mode (the interactive page shows the Save as PDF stamp there).
+    nonisolated static func showsBrandStamp(mode: RenderMode, enabled: Bool) -> Bool {
+        enabled && mode == .print
+    }
+}
+
+extension EnvironmentValues {
+    /// Draw `MadeWithStamp` on the printed closing page (`ExportPrivacy.showBrandStamp`). Off unless an exporter sets
+    /// it, so renderers that place their own stamp (carousel, Story) never get two.
+    @Entry var exportBrandStamp: Bool = false
 }
 
 /// Stamp-style "Save as PDF" button for the closing page (interactive only, never printed).

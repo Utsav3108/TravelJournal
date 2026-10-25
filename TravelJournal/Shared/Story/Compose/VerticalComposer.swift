@@ -12,6 +12,10 @@ import CoreGraphics
 /// 4. Cut the polyline at each page boundary; page N's exit and page N+1's entry are the same cut point.
 ///
 /// Slice order: cover, route map (omitted when `mapMode == .hidden`), stop pages, closing.
+///
+/// Story frames (`OutputSpec.story`, see `Options.oneStopPerSlice` and `VerticalComposer+Story.swift`): cover, ONE frame
+/// per stop (the leg band leading into the stop sits in that stop's frame), closing. There is no map frame. Nothing
+/// that must be read is placed in `spec.safeInsets`; the route still runs through the bands to the frame edges.
 nonisolated struct VerticalComposer: Composer {
     /// Spacing and sizes, in points.
     nonisolated struct Metrics: Hashable, Sendable {
@@ -36,13 +40,51 @@ nonisolated struct VerticalComposer: Composer {
         var endMarkerGap: CGFloat = 30       // route run between the last block and the marker
         /// Pages may be at most this fraction empty (except the last stop page).
         var maxEmptyFraction: CGFloat = 1.0 / 3.0
+
+        /// Metrics for a spec. Wide pages (A4, 595 pt) keep the fixed values above, unchanged; narrow frames (Story,
+        /// 360 pt) derive the lane, badge, label/story widths and end marker from the spec's margin and width, so
+        /// the connector reads at phone size and stays inside the frame.
+        static func resolved(for spec: OutputSpec) -> Metrics {
+            var m = Metrics()
+            let W = spec.sliceSize.width, margin = spec.margins.left
+            guard W < 500 else { return m }
+            m.laneInset = margin - 2
+            m.badgeSide = 32
+            m.bandPad = 6
+            m.crossRoom = 22
+            m.labelWidth = 300
+            m.storyWidth = min(270, W - m.laneInset - m.badgeSide / 2 - m.textGap - margin)
+            m.storyMaxLines = 2
+            m.tightPad = 4
+            m.tightCrossRoom = 16
+            m.tightStoryMaxLines = 1
+            m.endMarkerSize = CGSize(width: 150, height: 44)
+            m.endMarkerGap = 14
+            return m
+        }
     }
 
-    var metrics = Metrics()
+    /// Layout switches. The default derives from the spec (`Options.forSpec`).
+    nonisolated struct Options: Hashable, Sendable {
+        /// Each stop gets its own slice (cover, stops, closing; no map slice), packed between `spec.safeInsets`.
+        var oneStopPerSlice = false
 
-    init(metrics: Metrics = Metrics()) { self.metrics = metrics }
+        static func forSpec(_ spec: OutputSpec) -> Options { Options(oneStopPerSlice: spec.isStoryFrames) }
+    }
+
+    /// Explicit metrics; nil derives them from the spec (`Metrics.resolved(for:)`: A4 keeps today's values).
+    var metrics: Metrics?
+    var options: Options?
+
+    init(metrics: Metrics? = nil, options: Options? = nil) {
+        self.metrics = metrics
+        self.options = options
+    }
+
+    func resolvedMetrics(for spec: OutputSpec) -> Metrics { metrics ?? .resolved(for: spec) }
 
     func compose(_ snapshot: JourneySnapshot, spec: OutputSpec) -> ComposedDocument {
+        if (options ?? .forSpec(spec)).oneStopPerSlice { return composeFrames(snapshot, spec: spec) }
         var slices: [ComposedSlice] = []
         let size = spec.sliceSize
         let full = CGRect(origin: .zero, size: size)
@@ -76,11 +118,10 @@ nonisolated struct VerticalComposer: Composer {
         var rowBottom: CGFloat { rowTop + rowHeight }
     }
 
-    func band(for leg: JourneySnapshot.LegSnapshot, tight: Bool) -> Band {
-        let m = metrics
+    func band(for leg: JourneySnapshot.LegSnapshot, tight: Bool, storyLines: Int? = nil, metrics m: Metrics) -> Band {
         var storyH: CGFloat = 0
         if let story = leg.story, !story.isEmpty {
-            let lines = tight ? m.tightStoryMaxLines : m.storyMaxLines
+            let lines = storyLines ?? (tight ? m.tightStoryMaxLines : m.storyMaxLines)
             let textH = PageText.height(story, fontName: PageFont.caveat, size: 18, lineSpacing: 0,
                                         width: m.storyWidth - 2 * m.storyInset - 4)
             storyH = ceil(min(textH, CGFloat(lines) * m.storyLineHeight)) + 2 * m.storyInset
@@ -105,7 +146,7 @@ nonisolated struct VerticalComposer: Composer {
     private func stopPages(_ s: JourneySnapshot, spec: OutputSpec) -> [ComposedSlice] {
         let n = s.stops.count
         guard n > 0 else { return [] }
-        let m = metrics
+        let m = resolvedMetrics(for: spec)
         let W = spec.sliceSize.width, H = spec.sliceSize.height
         let content = spec.contentRect
         let seal = s.sealStopIndex
@@ -151,9 +192,9 @@ nonisolated struct VerticalComposer: Composer {
             let room = bottom(page) - cursor
             // Options, best first: normal band + full block, tight band + full block, tight band + shrunk block.
             let options: [(Band, StopBlockLayout)] = [
-                (band(for: leg, tight: false), block(i, 1)),
-                (band(for: leg, tight: true), block(i, 1)),
-                (band(for: leg, tight: true), block(i, m.shrunkPhotoBand)),
+                (band(for: leg, tight: false, metrics: m), block(i, 1)),
+                (band(for: leg, tight: true, metrics: m), block(i, 1)),
+                (band(for: leg, tight: true, metrics: m), block(i, m.shrunkPhotoBand)),
             ]
             var chosen = options[0]
             if room - (chosen.0.height + chosen.1.size.height) < -0.5 {
@@ -203,7 +244,7 @@ nonisolated struct VerticalComposer: Composer {
             pts += swing(from: CGPoint(x: x, y: curveTop), to: next).dropFirst()
             runs.append((pts, i))
             connectors.append((bandPlaced.page, connector(leg: i, legSnap: s.legs[i], band: bd, badge: badge,
-                                                          lane: x, W: W, pageTop: CGFloat(bandPlaced.page) * H)))
+                                                          lane: x, W: W, pageTop: CGFloat(bandPlaced.page) * H, metrics: m)))
         }
         let last = anchors[n - 1]
         let endX = lane(last.x)
@@ -248,16 +289,15 @@ nonisolated struct VerticalComposer: Composer {
     // MARK: Geometry
 
     /// Smooth swing from the lane into a ticket pin, arriving from straight above.
-    private func swing(from a: CGPoint, to b: CGPoint) -> [CGPoint] {
+    func swing(from a: CGPoint, to b: CGPoint) -> [CGPoint] {
         let dy = max(b.y - a.y, 1)
         let curve = CubicBezier(p0: a, c1: CGPoint(x: a.x, y: a.y + dy * 0.55),
                                 c2: CGPoint(x: b.x, y: b.y - dy * 0.55), p3: b)
         return curve.flattened(24)
     }
 
-    private func connector(leg i: Int, legSnap: JourneySnapshot.LegSnapshot, band: Band, badge: CGPoint, lane: CGFloat,
-                           W: CGFloat, pageTop: CGFloat) -> LegConnectorPlacement {
-        let m = metrics
+    func connector(leg i: Int, legSnap: JourneySnapshot.LegSnapshot, band: Band, badge: CGPoint, lane: CGFloat,
+                   W: CGFloat, pageTop: CGFloat, metrics m: Metrics) -> LegConnectorPlacement {
         let center = CGPoint(x: badge.x, y: badge.y - pageTop)
         let leftLane = lane < W / 2
         let textX = leftLane ? center.x + m.badgeSide / 2 + m.textGap : center.x - m.badgeSide / 2 - m.textGap

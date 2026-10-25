@@ -25,9 +25,11 @@ struct ComposedPageView: View {
     var body: some View {
         Group {
             switch slice.kind {
+            case .cover where spec.isStoryFrames: StoryCoverFrame(model: snapshot.coverModel, spec: spec)
             case .cover: CoverPage(model: snapshot.coverModel, metrics: metrics)
             case .map: RouteOverviewPage(model: snapshot.overviewModel, metrics: metrics, snap: mapSnap, isLoading: false,
                                          mapMode: snapshot.mapMode)
+            case .closing where spec.isStoryFrames: StoryClosingFrame(model: snapshot.closingModel, spec: spec)
             case .closing: ClosingPage(model: snapshot.closingModel, metrics: metrics)
             case .stops: stopsPage
             }
@@ -54,10 +56,12 @@ struct ComposedPageView: View {
             ForEach(slice.blocks) { block in
                 switch block.content {
                 case .stop(let i, let scale) where i < snapshot.stops.count:
-                    let model = snapshot.stopPageModel(i, sealIndex: seal)
-                    let layout = StopBlockLayout.make(model, width: slice.size.width, margin: spec.margins.left,
-                                                      photoBandScale: scale,
-                                                      maxHeight: spec.contentRect.height)
+                    // Story frames re-resolve the composer's fit (trimmed story, limited photos); A4 uses the scale it was given.
+                    let fit = spec.isStoryFrames ? StoryStopFit.resolve(snapshot, spec: spec, index: i) : nil
+                    let model = fit?.model ?? snapshot.stopPageModel(i, sealIndex: seal)
+                    let layout = fit?.layout ?? StopBlockLayout.make(model, width: slice.size.width, margin: spec.margins.left,
+                                                                      photoBandScale: scale,
+                                                                      maxHeight: spec.contentRect.height)
                     StopContentLayer(model: model, layout: layout.frames, arrivalText: snapshot.arrivalText(i),
                                      interactive: spec.mode == .interactive)
                         .placed(CGRect(origin: block.frame.origin, size: layout.size), alignment: .topLeading)
@@ -83,13 +87,22 @@ struct ComposedPageView: View {
     @ViewBuilder private func connector(_ c: LegConnectorPlacement) -> some View {
         let leg = snapshot.storyLeg(c.legIndex)
         let leading = c.center.x < slice.size.width / 2      // text sits on the inner side of the lane
+        let side = VerticalComposer.Metrics.resolved(for: spec).badgeSide
         if let r = c.storyFrame, let story = leg.story {
             LegStoryCard(story: story, legID: leg.id, size: r.size,
                          maxLines: max(1, Int((r.height - 20) / 23 + 0.5)))
                 .placed(r, alignment: .topLeading)
         }
-        LegBadge(leg: leg)
-            .placed(CGRect(x: c.center.x - 18, y: c.center.y - 18, width: 36, height: 36))
+        if side == 36 {
+            LegBadge(leg: leg)
+                .placed(CGRect(x: c.center.x - 18, y: c.center.y - 18, width: 36, height: 36))
+        } else {
+            // Smaller badge for narrow frames (Story): the 36 pt badge scaled to the spec's size.
+            LegBadge(leg: leg)
+                .scaleEffect(side / 36)
+                .frame(width: side, height: side)
+                .placed(CGRect(x: c.center.x - side / 2, y: c.center.y - side / 2, width: side, height: side))
+        }
         if let r = c.labelFrame {
             let label = LegBadge.label(leg)
             if !label.isEmpty {

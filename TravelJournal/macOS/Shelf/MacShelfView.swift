@@ -210,7 +210,7 @@ struct MacShelfView: View {
     private var exportAction: ExportActions? {
         guard bookcaseFocused, let journey = selectedJourney, MacExportCoordinator.canExport(journey) else { return nil }
         return ExportActions(
-            export: { MacExportCoordinator.shared.start(journey, purpose: .save, origin: .shelf) },
+            export: { MacExportCoordinator.shared.requestExport(journey, origin: .shelf) },
             print: { MacExportCoordinator.shared.start(journey, purpose: .print, origin: .shelf) })
     }
 

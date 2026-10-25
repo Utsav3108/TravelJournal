@@ -18,18 +18,34 @@ final class MacExportCoordinator {
     private(set) var document: PDFFileDocument?
     private(set) var documentName = "Journey"
     var errorMessage: String?
+    /// The Export sheet flow, while one is open. Only the host whose `origin` started it presents it.
+    private(set) var flow: ExportFlowModel?
 
     /// Injectable for tests.
     var makeExporter: () -> StoryPDFExporter = { StoryPDFExporter() }
+    var makeFlow: (Journey) -> ExportFlowModel = { ExportFlowModel(journey: $0) }
     var printHandler: (Data, String) -> Void = { PrintBridge.print(pdfData: $0, title: $1) }
 
     private var task: Task<Void, Never>?
 
     var isExporting: Bool { progress != nil }
-    var isBusy: Bool { task != nil || isPresentingSave }
+    var isBusy: Bool { task != nil || isPresentingSave || flow != nil }
 
     /// Export and Print need at least one stop.
     static func canExport(_ journey: Journey) -> Bool { !journey.stops.isEmpty }
+
+    /// ⌘E, the toolbar Export button and the shelf menu: opens the Export sheet in the window that asked.
+    func requestExport(_ journey: Journey, origin: Origin) {
+        guard !isBusy, Self.canExport(journey) else { return }
+        self.origin = origin
+        errorMessage = nil
+        let model = makeFlow(journey)
+        model.onFinish = { [weak self, weak model] in
+            if self?.flow === model { self?.flow = nil }
+        }
+        flow = model
+        model.present()
+    }
 
     func start(_ journey: Journey, purpose: Purpose, origin: Origin) {
         guard !isBusy, Self.canExport(journey), let pdf = JourneyPDF(journey) else { return }

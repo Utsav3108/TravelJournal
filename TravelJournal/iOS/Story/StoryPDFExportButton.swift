@@ -1,127 +1,18 @@
 import SwiftUI
 
-/// Single export + share flow. The nav-bar button and the closing page's "Save as PDF" stamp both call `start()`.
-@Observable
-final class StoryPDFExportModel {
-    let journey: Journey
-    var progress: (done: Int, total: Int)?
-    var shareItem: ShareItem?
-    var errorMessage: String?
-    private var task: Task<Void, Never>?
-
-    init(journey: Journey) { self.journey = journey }
-
-    var hasStops: Bool { !journey.stops.isEmpty }
-    var isExporting: Bool { progress != nil }
-
-    func cancel() { task?.cancel() }
-
-    func start() {
-        guard hasStops, task == nil else { return }
-        progress = (0, 1)
-        let exporter = StoryPDFExporter()
-        exporter.progress = { [weak self] done, total in self?.progress = (done, total) }
-        let journey = journey
-        task = Task { [weak self] in
-            defer { self?.task = nil; self?.progress = nil }
-            do {
-                let url = try await exporter.export(journey)
-                self?.progress = nil
-                try? await Task.sleep(for: .milliseconds(350))   // let the progress sheet dismiss before presenting
-                self?.shareItem = ShareItem(url: url)
-            } catch is CancellationError {
-            } catch {
-                self?.errorMessage = error.localizedDescription
-            }
-        }
-    }
-}
-
-/// Toolbar "Export PDF" button; presentations live in `.pdfExportPresentations(_:)`, attached once by the owner.
+/// Toolbar "Export" button. It opens the Export sheet; the sheet and everything after it are attached once by the
+/// owner with `.exportFlowPresentations(_:)`. The accessibility id stays `exportPDF` for the UI tests.
 struct StoryPDFExportButton: View {
-    let model: StoryPDFExportModel
+    let model: ExportFlowModel
 
     var body: some View {
         Button {
-            model.start()
+            model.present()
         } label: {
-            Label("Export PDF", systemImage: "square.and.arrow.up")
+            Label("Export", systemImage: "square.and.arrow.up")
         }
-        .disabled(!model.hasStops || model.isExporting)
+        .disabled(!model.hasStops || model.isActive)
         .accessibilityIdentifier("exportPDF")
-        .accessibilityHint(model.hasStops ? "Creates a printable PDF of this journey" : "Add at least one stop to export a PDF")
-    }
-}
-
-extension View {
-    /// Progress sheet, share sheet and error alert for a `StoryPDFExportModel`.
-    func pdfExportPresentations(_ model: StoryPDFExportModel) -> some View {
-        modifier(PDFExportPresentations(model: model))
-    }
-}
-
-private struct PDFExportPresentations: ViewModifier {
-    @Bindable var model: StoryPDFExportModel
-
-    func body(content: Content) -> some View {
-        content
-            .sheet(isPresented: Binding(get: { model.isExporting }, set: { _ in })) {
-                ExportProgressView(done: model.progress?.done ?? 0, total: model.progress?.total ?? 0) { model.cancel() }
-                    .presentationDetents([.height(220)])
-                    .interactiveDismissDisabled()
-            }
-            .sheet(item: $model.shareItem) { item in
-                ShareReadyView(url: item.url) { model.shareItem = nil }
-                    .presentationDetents([.height(260), .medium])
-            }
-            .alert("Couldn't export PDF", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(model.errorMessage ?? "")
-            }
-    }
-}
-
-struct ShareItem: Identifiable {
-    let id = UUID()
-    let url: URL
-}
-
-private struct ExportProgressView: View {
-    let done: Int
-    let total: Int
-    let cancel: () -> Void
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("Making your PDF").font(.headline)
-            ProgressView(value: Double(done), total: Double(max(total, 1)))
-            Text(done == 0 ? "Preparing map and photos" : "Page \(min(done, total)) of \(total)")
-                .font(.subheadline).foregroundStyle(.secondary)
-                .accessibilityIdentifier("exportProgressText")
-            Button("Cancel", role: .cancel, action: cancel).accessibilityIdentifier("exportCancel")
-        }
-        .padding(24)
-    }
-}
-
-/// Shown when the PDF is ready. `ShareLink` replaces the UIKit activity sheet; it needs one tap, so the sheet offers it.
-private struct ShareReadyView: View {
-    let url: URL
-    let done: () -> Void
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("Your PDF is ready").font(.headline)
-            Text(url.deletingPathExtension().lastPathComponent)
-                .font(.subheadline).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.center)
-            ShareLink(item: url) {
-                Label("Share PDF", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent).controlSize(.large)
-            .accessibilityIdentifier("sharePDF")
-            Button("Done", action: done).accessibilityIdentifier("shareDone")
-        }
-        .padding(24)
+        .accessibilityHint(model.hasStops ? "Choose a format and export this journey" : "Add at least one stop to export")
     }
 }

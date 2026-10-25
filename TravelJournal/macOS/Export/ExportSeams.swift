@@ -28,12 +28,12 @@ struct JourneyExportToolbar: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             Button {
-                MacExportCoordinator.shared.start(journey, purpose: .save, origin: .journey(journey.id))
+                MacExportCoordinator.shared.requestExport(journey, origin: .journey(journey.id))
             } label: {
-                Label("Export PDF", systemImage: "arrow.down.document")
+                Label("Export", systemImage: "arrow.down.document")
             }
             .disabled(!MacExportCoordinator.canExport(journey) || MacExportCoordinator.shared.isBusy)
-            .help("Save this journey as a PDF")
+            .help("Export this journey as a PDF or Instagram post")
             .accessibilityIdentifier("exportPDF")
         }
         ToolbarItem(placement: .primaryAction) {
@@ -68,8 +68,8 @@ struct ExportContextMenuItems: View {
     var body: some View {
         let busy = MacExportCoordinator.shared.isBusy
         Divider()
-        Button("Export as PDF…") {
-            MacExportCoordinator.shared.start(journey, purpose: .save, origin: .shelf)
+        Button("Export…") {
+            MacExportCoordinator.shared.requestExport(journey, origin: .shelf)
         }
         .disabled(!MacExportCoordinator.canExport(journey) || busy)
         Button("Print…") {
@@ -89,6 +89,11 @@ private struct ExportHost: ViewModifier {
         let mine = coordinator.origin == origin
         content
             .focusedSceneValue(\.exportActions, actions)
+            .background {
+                if mine, let flow = coordinator.flow {
+                    Color.clear.exportFlowPresentations(flow)
+                }
+            }
             .sheet(isPresented: Binding(get: { mine && coordinator.isExporting }, set: { _ in })) {
                 ExportProgressSheet(done: coordinator.progress?.done ?? 0, total: coordinator.progress?.total ?? 0) {
                     coordinator.cancel()
@@ -110,7 +115,7 @@ private struct ExportHost: ViewModifier {
     private var actions: ExportActions? {
         guard let journey, MacExportCoordinator.canExport(journey) else { return nil }
         return ExportActions(
-            export: { MacExportCoordinator.shared.start(journey, purpose: .save, origin: origin) },
+            export: { MacExportCoordinator.shared.requestExport(journey, origin: origin) },
             print: { MacExportCoordinator.shared.start(journey, purpose: .print, origin: origin) })
     }
 }

@@ -25,13 +25,13 @@ struct StoryViewerContent: View {
     @State private var legCard: StoryLeg?
     @State private var photo: StoryPhoto?
     @State private var editTarget: PersistentIdentifier?
-    @State private var export: StoryPDFExportModel
+    @State private var export: ExportFlowModel
     @State private var tempReveal = false
     @State private var revealTask: Task<Void, Never>?
 
     init(journey: Journey) {
         self.journey = journey
-        _export = State(initialValue: StoryPDFExportModel(journey: journey))
+        _export = State(initialValue: ExportFlowModel(journey: journey))
     }
 
     /// Constant status-bar height (measured above the navigation stack), so pages never move when the navigation bar hides or shows.
@@ -70,7 +70,7 @@ struct StoryViewerContent: View {
             if !keep { cancelReveal() }
         }
         .onDisappear { cancelReveal() }
-        .pdfExportPresentations(export)
+        .exportFlowPresentations(export)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("storyViewer")
         .navigationTitle(journey.title.isEmpty ? "Story" : journey.title)
@@ -135,7 +135,7 @@ struct StoryViewerContent: View {
             onPinTap: { pid in
                 withAnimation(.easeInOut(duration: 0.4)) { currentID = pid }
             },
-            onSavePDF: { export.start() })
+            onSavePDF: { export.present() })
     }
 
     private func revealBarTemporarily() {

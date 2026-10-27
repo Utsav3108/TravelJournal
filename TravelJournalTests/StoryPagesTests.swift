@@ -1,6 +1,5 @@
 import XCTest
 import SwiftUI
-import UIKit
 @testable import TravelJournal
 
 @MainActor
@@ -152,77 +151,61 @@ final class StoryPagesTests: XCTestCase {
 
     // MARK: Image provider
 
-    private func tempStore() throws -> (FilePhotoStore, URL) {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("story-pages-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: dir.appendingPathComponent("Photos/thumbs"), withIntermediateDirectories: true)
-        return (FilePhotoStore(baseURL: dir), dir)
+    /// Photo bytes by `StoryPhoto.id`, standing in for the model.
+    private struct DictSource: StoryPhotoSource {
+        var data: [String: Data]
+        func imageData(forPhotoID id: String) -> Data? { data[id] }
     }
 
-    private func writeJPEG(_ url: URL, side: CGFloat) throws {
-        let img = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { ctx in
-            UIColor.orange.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: side, height: side))
-        }
-        try img.jpegData(compressionQuality: 0.8)!.write(to: url)
+    private func jpegData(side: CGFloat) throws -> Data {
+        let img = try XCTUnwrap(ImageDrawing.render(size: CGSize(width: side, height: side), opaque: true) { ctx in
+            ctx.setFillColor(ImageDrawing.color(red: 1, green: 0.5, blue: 0)); ctx.fill(CGRect(x: 0, y: 0, width: side, height: side))
+        })
+        return try XCTUnwrap(ImageDrawing.jpegData(img, quality: 0.8))
     }
 
-    func testImageProviderFallbacksAndCache() throws {
-        let (store, dir) = try tempStore()
-        defer { try? FileManager.default.removeItem(at: dir) }
-        try writeJPEG(dir.appendingPathComponent("Photos/full.jpg"), side: 400)
-        try writeJPEG(dir.appendingPathComponent("Photos/thumbs/thumb.jpg"), side: 100)
-        let provider = FileStoryImageProvider(store: store)
+    func testImageProviderSizesCachesAndFallsBackToPlaceholder() throws {
+        let provider = ModelStoryImageProvider(source: DictSource(data: [
+            "full": try jpegData(side: 400),
+            "bad": Data("not a jpeg".utf8),
+        ]))
 
-        let both = StoryPhoto(id: "1", relativePath: "Photos/full.jpg", thumbPath: "Photos/thumbs/thumb.jpg", isHero: true)
-        let thumbPx = CGFloat(provider.image(for: both, preferThumbnail: true)!.cgImage!.width)
-        let fullPx = CGFloat(provider.image(for: both, preferThumbnail: false)!.cgImage!.width)
-        XCTAssertEqual(thumbPx, 300, accuracy: 1, "interactive mode prefers the thumbnail")
-        XCTAssertEqual(fullPx, 1200, accuracy: 1, "print mode uses the display file")
+        let photo = StoryPhoto(id: "full", isHero: true)
+        let small = CGFloat(try XCTUnwrap(provider.image(for: photo, preferThumbnail: true, maxPixel: 100)).width)
+        let big = CGFloat(try XCTUnwrap(provider.image(for: photo, preferThumbnail: false)).width)
+        XCTAssertEqual(small, 100, accuracy: 1, "interactive pages decode only what their frame needs")
+        XCTAssertEqual(big, 400, accuracy: 1, "print asks for print resolution and is never upsized")
 
-        // cache: repeated loads do not decode again
+        // cache: repeated requests do not decode again
         let before = provider.loadCount
-        _ = provider.image(for: both, preferThumbnail: true)
-        _ = provider.image(for: both, preferThumbnail: false)
+        _ = provider.image(for: photo, preferThumbnail: true, maxPixel: 100)
+        _ = provider.image(for: photo, preferThumbnail: false)
         XCTAssertEqual(provider.loadCount, before)
 
-        // thumb missing -> falls back to full; full missing -> falls back to thumb
-        let noThumb = StoryPhoto(id: "2", relativePath: "Photos/full.jpg", thumbPath: "Photos/thumbs/missing.jpg", isHero: false)
-        XCTAssertNotNil(provider.image(for: noThumb, preferThumbnail: true))
-        let noFull = StoryPhoto(id: "3", relativePath: "Photos/missing.jpg", thumbPath: "Photos/thumbs/thumb.jpg", isHero: false)
-        XCTAssertNotNil(provider.image(for: noFull, preferThumbnail: false))
-
-        // sample: and missing files -> nil (placeholder)
-        XCTAssertNil(provider.image(for: StoryPhoto(id: "4", relativePath: "sample:x-1", thumbPath: "sample:x-1", isHero: true), preferThumbnail: true))
-        XCTAssertNil(provider.image(for: StoryPhoto(id: "5", relativePath: "Photos/nope.jpg", thumbPath: nil, isHero: true), preferThumbnail: false))
-        XCTAssertNil(provider.image(for: StoryPhoto(id: "6", relativePath: "", thumbPath: nil, isHero: true), preferThumbnail: false))
-
-        // a corrupt file is also a placeholder, not a crash
-        try Data("not a jpeg".utf8).write(to: dir.appendingPathComponent("Photos/bad.jpg"))
-        XCTAssertNil(provider.image(for: StoryPhoto(id: "7", relativePath: "Photos/bad.jpg", thumbPath: nil, isHero: true), preferThumbnail: false))
-        XCTAssertTrue(FileStoryImageProvider.isLoadable("Photos/a.jpg"))
-        XCTAssertFalse(FileStoryImageProvider.isLoadable("sample:a"))
+        // no data for the id (sample photos, unknown ids) and corrupt data are placeholders, not crashes
+        XCTAssertNil(provider.image(for: StoryPhoto(id: "sample-1", isHero: true), preferThumbnail: true))
+        XCTAssertNil(provider.image(for: StoryPhoto(id: "bad", isHero: true), preferThumbnail: false))
     }
 
     // MARK: Rendering
 
-    private func render(_ page: StoryPage, metrics: PageMetrics, provider: StoryImageProvider = PlaceholderImageProvider()) -> UIImage? {
+    private func render(_ page: StoryPage, metrics: PageMetrics, provider: StoryImageProvider = PlaceholderImageProvider()) -> CGImage? {
         let view = StoryPageView(page: page, metrics: metrics).environment(\.storyImageProvider, provider)
-        let r = ImageRenderer(content: view)
-        r.scale = 1
-        return r.uiImage
+        return TestImages.render(view, scale: 1)
     }
 
-    private func save(_ img: UIImage?, _ name: String) {
-        guard FileManager.default.fileExists(atPath: Self.renderDir), let data = img?.pngData() else { return }
-        try? data.write(to: URL(fileURLWithPath: Self.renderDir).appendingPathComponent(name + ".png"))
+    private func save(_ img: CGImage?, _ name: String) {
+        guard FileManager.default.fileExists(atPath: Self.renderDir) else { return }
+        TestImages.writePNG(img, to: URL(fileURLWithPath: Self.renderDir).appendingPathComponent(name + ".png"))
     }
 
     func testEveryPageTypeRendersAtA4() {
         for (label, page) in StoryPageSamples.all {
             let img = render(page, metrics: a4)
             XCTAssertNotNil(img, label)
-            XCTAssertEqual(img?.size.width ?? 0, 595, accuracy: 0.5, label)
-            XCTAssertEqual(img?.size.height ?? 0, 842, accuracy: 0.5, label)
-            XCTAssertGreaterThan(img?.pngData()?.count ?? 0, 5_000, "\(label) rendered blank")
+            XCTAssertEqual(CGFloat(img?.width ?? 0), 595, accuracy: 0.5, label)
+            XCTAssertEqual(CGFloat(img?.height ?? 0), 842, accuracy: 0.5, label)
+            XCTAssertGreaterThan(img.flatMap { ImageDrawing.pngData($0) }?.count ?? 0, 5_000, "\(label) rendered blank")
             save(img, "a4-" + label.lowercased().replacingOccurrences(of: " ", with: "-").replacingOccurrences(of: ",", with: "").replacingOccurrences(of: "(", with: "").replacingOccurrences(of: ")", with: ""))
         }
     }
@@ -231,8 +214,8 @@ final class StoryPagesTests: XCTestCase {
         for t in [StopTemplate.t0, .t1, .t2, .t3, .t4] {
             let page = StoryPage.stop(StoryPageSamples.stop(t, story: StoryPageSamples.story100, seal: t == .t2))
             let img = render(page, metrics: phonePrint)
-            XCTAssertGreaterThanOrEqual(img?.size.height ?? 0, 844, "T\(t.rawValue)")
-            XCTAssertEqual(img?.size.width ?? 0, 390, accuracy: 0.5)
+            XCTAssertGreaterThanOrEqual(CGFloat(img?.height ?? 0), 844, "T\(t.rawValue)")
+            XCTAssertEqual(CGFloat(img?.width ?? 0), 390, accuracy: 0.5)
             save(img, "phone-stop-t\(t.rawValue)")
         }
         save(render(.cover(StoryPageSamples.cover), metrics: phonePrint), "phone-cover")
@@ -240,12 +223,10 @@ final class StoryPagesTests: XCTestCase {
     }
 
     func testStopWithRealPhotosRenders() throws {
-        let (store, dir) = try tempStore()
-        defer { try? FileManager.default.removeItem(at: dir) }
-        try writeJPEG(dir.appendingPathComponent("Photos/a.jpg"), side: 600)
-        let provider = FileStoryImageProvider(store: store)
+        let data = try jpegData(side: 600)
+        let provider = ModelStoryImageProvider(source: DictSource(data: ["r0": data, "r1": data, "r2": data]))
         var m = StoryPageSamples.stop(.t3, story: StoryPageSamples.story100)
-        m.photos = (0..<3).map { StoryPhoto(id: "r\($0)", relativePath: "Photos/a.jpg", thumbPath: nil, isHero: $0 == 0) }
+        m.photos = (0..<3).map { StoryPhoto(id: "r\($0)", isHero: $0 == 0) }
         let img = render(.stop(m), metrics: a4, provider: provider)
         XCTAssertNotNil(img)
         save(img, "a4-real-photos-t3")

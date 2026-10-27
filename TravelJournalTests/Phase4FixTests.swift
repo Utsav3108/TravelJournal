@@ -1,6 +1,5 @@
 import Testing
 import SwiftUI
-import UIKit
 @testable import TravelJournal
 
 @MainActor
@@ -9,29 +8,15 @@ struct Phase4FixTests {
 
     // MARK: Postmark arc text
 
-    private func opaquePixels(_ img: UIImage) -> Int {
-        guard let cg = img.cgImage else { return 0 }
-        let w = cg.width, h = cg.height
-        var buf = [UInt8](repeating: 0, count: w * h * 4)
-        let ctx = CGContext(data: &buf, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
-                            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
-        var n = 0
-        for i in stride(from: 0, to: buf.count, by: 4) where buf[i + 3] > 40 { n += 1 }
-        return n
-    }
-
     @Test func postmarkArcTextRenders() throws {
         KraftFonts.register()
-        func render(_ top: String, _ bottom: String) throws -> UIImage {
-            let r = ImageRenderer(content: Postmark(top: top, bottom: bottom, center: "", size: 120, seed: "x").frame(width: 140, height: 140))
-            r.scale = 2
-            return try #require(r.uiImage)
+        func render(_ top: String, _ bottom: String) throws -> CGImage {
+            try #require(TestImages.render(Postmark(top: top, bottom: bottom, center: "", size: 120, seed: "x").frame(width: 140, height: 140), scale: 2))
         }
         let with = try render("STOP TWO", "MUMBAI")
         let without = try render("", "")
-        #expect(opaquePixels(with) > opaquePixels(without) + 150)
-        try? with.pngData()?.write(to: URL(fileURLWithPath: Self.out + "/postmark-arc.png"))
+        #expect(TestImages.opaquePixelCount(with) > TestImages.opaquePixelCount(without) + 150)
+        TestImages.writePNG(with, to: URL(fileURLWithPath: Self.out + "/postmark-arc.png"))
     }
 
     // MARK: Pin de-overlap
@@ -85,10 +70,8 @@ struct Phase4FixTests {
     }
 
     @Test func renderOverviewPNG() throws {
-        let r = ImageRenderer(content: RouteOverviewPage(model: OverviewSamples.mumbai, metrics: .a4, snap: nil))
-        r.proposedSize = ProposedViewSize(width: 595, height: 842)
-        r.scale = 2
-        let img = try #require(r.uiImage)
-        try? img.pngData()?.write(to: URL(fileURLWithPath: Self.out + "/overview-fixed-fallback.png"))
+        let img = try #require(TestImages.render(RouteOverviewPage(model: OverviewSamples.mumbai, metrics: .a4, snap: nil),
+                                                 proposed: ProposedViewSize(width: 595, height: 842), scale: 2))
+        TestImages.writePNG(img, to: URL(fileURLWithPath: Self.out + "/overview-fixed-fallback.png"))
     }
 }

@@ -1,7 +1,6 @@
 import XCTest
 import SwiftData
 import PDFKit
-import UIKit
 @testable import TravelJournal
 
 @MainActor
@@ -29,44 +28,38 @@ final class StoryExportTests: XCTestCase {
     // MARK: Helpers
 
     private func exporter() -> StoryPDFExporter {
-        StoryPDFExporter(snapshots: snapshots, photoStore: FilePhotoStore(baseURL: base),
+        StoryPDFExporter(snapshots: snapshots,
                          outputDirectory: base.appendingPathComponent("out-\(UUID().uuidString)"))
     }
 
     /// Photo-like JPEG at the app's stored display size (2400 px long edge): gradient plus shapes plus grain.
     private func jpeg(seed: Int, size: CGSize = CGSize(width: 2400, height: 1800)) -> Data {
         var rng = SystemRandomNumberGenerator()
-        let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1; fmt.opaque = true
-        let img = UIGraphicsImageRenderer(size: size, format: fmt).image { r in
-            let c = r.cgContext
-            let cs = CGColorSpaceCreateDeviceRGB()
-            let hue = CGFloat(seed % 7) / 7
-            let g = CGGradient(colorsSpace: cs, colors: [UIColor(hue: hue, saturation: 0.5, brightness: 0.9, alpha: 1).cgColor,
-                                                         UIColor(hue: hue + 0.1, saturation: 0.7, brightness: 0.4, alpha: 1).cgColor] as CFArray,
+        let img = ImageDrawing.render(size: size, opaque: true) { c in
+            let hue = Double(seed % 7) / 7
+            let g = CGGradient(colorsSpace: ImageDrawing.sRGB,
+                               colors: [ImageDrawing.color(hue: hue, saturation: 0.5, brightness: 0.9),
+                                        ImageDrawing.color(hue: hue + 0.1, saturation: 0.7, brightness: 0.4)] as CFArray,
                                locations: [0, 1])!
             c.drawLinearGradient(g, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
             for _ in 0..<1500 {
-                c.setFillColor(UIColor(hue: .random(in: 0...1, using: &rng), saturation: 0.6, brightness: .random(in: 0.3...1, using: &rng),
-                                       alpha: 0.5).cgColor)
+                c.setFillColor(ImageDrawing.color(hue: .random(in: 0...1, using: &rng), saturation: 0.6,
+                                                  brightness: .random(in: 0.3...1, using: &rng), alpha: 0.5))
                 c.fillEllipse(in: CGRect(x: .random(in: 0...size.width, using: &rng), y: .random(in: 0...size.height, using: &rng),
                                          width: .random(in: 4...60, using: &rng), height: .random(in: 4...60, using: &rng)))
             }
-        }
-        return img.jpegData(compressionQuality: 0.85)!
+        }!
+        return ImageDrawing.jpegData(img, quality: 0.85)!
     }
 
-    /// Replaces "sample:" photo paths with real JPEG files in the temp store.
+    /// Gives the sample (placeholder) photos real JPEG bytes in the model.
     @discardableResult
     private func attachRealPhotos(_ j: Journey) throws -> Int {
         var total = 0
         for s in j.orderedStops {
             for (i, p) in s.orderedPhotos.enumerated() {
-                let rel = "Photos/\(p.id.uuidString).jpg"
                 let portrait = i % 2 == 1
-                try jpeg(seed: total, size: portrait ? CGSize(width: 1800, height: 2400) : CGSize(width: 2400, height: 1800))
-                    .write(to: base.appendingPathComponent(rel))
-                p.relativePath = rel
-                p.thumbRelativePath = rel
+                p.imageData = jpeg(seed: total, size: portrait ? CGSize(width: 1800, height: 2400) : CGSize(width: 2400, height: 1800))
                 total += 1
             }
         }
@@ -78,8 +71,8 @@ final class StoryExportTests: XCTestCase {
     private func writePNGs(_ doc: PDFDocument, prefix: String) {
         for i in 0..<doc.pageCount {
             guard let page = doc.page(at: i) else { continue }
-            let img = page.thumbnail(of: CGSize(width: 1190, height: 1684), for: .mediaBox)
-            try? img.pngData()?.write(to: URL(fileURLWithPath: "\(Self.scratch)/\(prefix)-page\(i + 1).png"))
+            let img = TestImages.image(of: page, size: CGSize(width: 1190, height: 1684))
+            TestImages.writePNG(img, to: URL(fileURLWithPath: "\(Self.scratch)/\(prefix)-page\(i + 1).png"))
         }
     }
 
@@ -89,18 +82,18 @@ final class StoryExportTests: XCTestCase {
         let j = SampleData.mumbai(in: context)
         let photoCount = try attachRealPhotos(j)
         XCTAssertGreaterThan(photoCount, 0)
-        let expected = StoryLayout().pages(for: j).count
-        XCTAssertEqual(expected, 7)
-
         var ticks: [(Int, Int)] = []
         let ex = exporter()
+        let expected = ex.document(for: j).document.slices.count
+        XCTAssertGreaterThanOrEqual(expected, 4, "cover, map, stop page(s), closing")
+
         ex.progress = { ticks.append(($0, $1)) }
         let url = try await ex.export(j)
 
         XCTAssertEqual(url.lastPathComponent, "A Day in Mumbai.pdf")
         XCTAssertEqual(ticks.first?.0, 0)
-        XCTAssertEqual(ticks.last?.0, 7)
-        XCTAssertEqual(ticks.last?.1, 7)
+        XCTAssertEqual(ticks.last?.0, expected)
+        XCTAssertEqual(ticks.last?.1, expected)
 
         let doc = try pdf(url)
         XCTAssertEqual(doc.pageCount, expected)
@@ -115,29 +108,32 @@ final class StoryExportTests: XCTestCase {
                       "stop name extractable")
         let attrs = doc.documentAttributes ?? [:]
         XCTAssertEqual(attrs[PDFDocumentAttribute.titleAttribute] as? String, "A Day in Mumbai")
-        XCTAssertEqual(attrs[PDFDocumentAttribute.authorAttribute] as? String, "TravelJournal")
+        XCTAssertNil(attrs[PDFDocumentAttribute.authorAttribute], "no author unless the user adds one")
+        XCTAssertEqual(attrs[PDFDocumentAttribute.creatorAttribute] as? String, "TravelJournal")
+        XCTAssertEqual(attrs[PDFDocumentAttribute.subjectAttribute] as? String, "Travel journal", "never the city")
 
         let size = try XCTUnwrap(try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int)
         print("EXPORT_SIZE_BYTES=\(size) photos=\(photoCount) pages=\(doc.pageCount)")
         XCTAssertLessThan(size, 8_000_000, "Mumbai PDF with \(photoCount) 2400px JPEGs must stay under 8 MB (was \(size))")
 
         try? FileManager.default.removeItem(atPath: Self.scratch + "/Mumbai.pdf")
-        try FileManager.default.copyItem(at: url, to: URL(fileURLWithPath: Self.scratch + "/Mumbai.pdf"))
+        try? FileManager.default.copyItem(at: url, to: URL(fileURLWithPath: Self.scratch + "/Mumbai.pdf"))
         writePNGs(doc, prefix: "mumbai")
     }
 
     func testMumbaiExportWithSamplePlaceholders() async throws {
         let j = SampleData.mumbai(in: context)
-        let url = try await exporter().export(j)
+        let ex = exporter()
+        let url = try await ex.export(j)
         let doc = try pdf(url)
-        XCTAssertEqual(doc.pageCount, 7)
+        XCTAssertEqual(doc.pageCount, ex.document(for: j).document.slices.count)
         XCTAssertTrue((doc.string ?? "").contains("Mumbai"))
     }
 
     func testCancellationLeavesNoFile() async throws {
         let j = SampleData.mumbai(in: context)
         let out = base.appendingPathComponent("cancel-out")
-        let ex = StoryPDFExporter(snapshots: snapshots, photoStore: FilePhotoStore(baseURL: base), outputDirectory: out)
+        let ex = StoryPDFExporter(snapshots: snapshots, outputDirectory: out)
         let task = Task { @MainActor in try await ex.export(j) }
         ex.progress = { done, _ in if done == 2 { task.cancel() } }
         do {
@@ -181,7 +177,7 @@ final class StoryExportTests: XCTestCase {
         let b = Stop(placeName: "Vagator", story: "More sunset."); b.latitude = 15.6; b.longitude = 73.74
         editor.addStop(b, to: j)
         let doc = try pdf(try await exporter().export(j))
-        XCTAssertEqual(doc.pageCount, 5)
+        XCTAssertEqual(doc.pageCount, 4)   // cover, overview, both short stops on one page, closing
         XCTAssertTrue((doc.string ?? "").contains("Vagator"))
     }
 
@@ -189,6 +185,16 @@ final class StoryExportTests: XCTestCase {
         let j = Journey(title: "Empty"); context.insert(j)
         do { _ = try await exporter().export(j); XCTFail("expected error") }
         catch StoryPDFExportError.noStops {}
+    }
+
+    func testAllStopsHiddenThrows() async throws {
+        let j = Journey(title: "Hotel Only"); context.insert(j)
+        let editor = JourneyEditor(context: context, photos: NoopPhotoStore())
+        let s = Stop(placeName: "Hotel check-in", story: "Keys, then a nap.")
+        s.exportHidden = true
+        editor.addStop(s, to: j)
+        do { _ = try await exporter().export(j); XCTFail("expected error") }
+        catch StoryPDFExportError.allStopsHidden {}
     }
 
     func testFileNameSanitising() {

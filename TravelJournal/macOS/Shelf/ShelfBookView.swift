@@ -1,7 +1,7 @@
 #if os(macOS)
 import SwiftUI
 
-/// One journey standing face-out: cover photo, title in Allura, a slight lean seeded by the id.
+/// One journey standing face-out: cover photo, title in Allura, standing upright on the shelf.
 struct ShelfBookView: View {
     let journey: Journey
     let selected: Bool
@@ -16,9 +16,6 @@ struct ShelfBookView: View {
         StoredPhotos.image(photo: journey.coverPhoto,
                            maxPixel: ImageDecoding.maxPixel(forPoints: BookcaseReflow.bookSize.width, scale: displayScale))
     }
-
-    /// -1.6...1.6 degrees, stable per journey.
-    private var lean: Double { Double(abs(bookcaseStableSeed(journey.id)) % 5) * 0.8 - 1.6 }
 
     var body: some View {
         ZStack {
@@ -45,7 +42,6 @@ struct ShelfBookView: View {
         // Selection is a book pulled forward from the shelf, not an outline.
         .shadow(color: .black.opacity(selected ? 0.45 : hovering ? 0.4 : 0.28),
                 radius: selected ? 10 : hovering ? 8 : 5, x: 0, y: selected ? 8 : hovering ? 6 : 4)
-        .rotationEffect(.degrees(lean), anchor: .bottom)
         .offset(y: selected ? -8 : hovering ? -4 : 0)
         .animation(.easeOut(duration: 0.15), value: hovering)
         .animation(.easeOut(duration: 0.15), value: selected)
@@ -96,9 +92,11 @@ struct ShelfTileView: View {
 /// The wall behind the books: paper, with a wooden plank under every shelf.
 struct ShelfWall: View {
     let rows: Int
+    var topInset: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
+            Color.clear.frame(height: topInset)
             ForEach(0..<rows, id: \.self) { row in
                 Color.clear
                     .frame(height: BookcaseReflow.shelfHeight - BookcaseReflow.plankHeight)

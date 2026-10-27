@@ -89,7 +89,7 @@ struct SlidePreviewView: View {
         VStack(spacing: 12) {
             HStack {
                 Text(title).font(.headline).lineLimit(1)
-                Spacer()
+                Spacer(minLength: 12)
                 Button("Done") { dismiss() }
                     .keyboardShortcut(.cancelAction)
                     .accessibilityIdentifier("slidePreviewDone")
@@ -100,6 +100,8 @@ struct SlidePreviewView: View {
                     .keyboardShortcut(.leftArrow, modifiers: [])
                     .accessibilityLabel("Previous slide")
                 slide(pager.index)
+                    .frame(maxWidth: .infinity)
+                    .layoutPriority(1)
                     .id(pager.index)
                     .gesture(DragGesture(minimumDistance: 30).onEnded { v in
                         if v.translation.width < 0 { pager.next() } else { pager.previous() }
@@ -115,7 +117,7 @@ struct SlidePreviewView: View {
             actions
         }
         .padding(20)
-        .frame(minWidth: 520, minHeight: 640)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .alert(message ?? "", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
             Button("OK") { message = nil }
         }

@@ -31,7 +31,13 @@ struct MacShelfView: View {
 
     var body: some View {
         NavigationStack {
-            GeometryReader { geo in bookcase(size: geo.size) }
+            GeometryReader { geo in
+                if journeys.isEmpty {
+                    emptyLibrary.frame(maxWidth: .infinity, maxHeight: .infinity).background(PaperBackground())
+                } else {
+                    bookcase(size: geo.size)
+                }
+            }
                 .navigationTitle("My Stories")
                 .searchable(text: $query, prompt: "Search journeys")
                 .toolbar {
@@ -116,7 +122,7 @@ struct MacShelfView: View {
                 }
                 .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: reflow)
                 .background {
-                    ShelfWall(rows: reflow.wallRows)
+                    ShelfWall(rows: reflow.wallRows, topInset: reflow.topInset)
                         .contentShape(Rectangle())
                         .onTapGesture { selection = nil; bookcaseFocused = true }
                 }
@@ -128,7 +134,7 @@ struct MacShelfView: View {
             .onKeyPress(phases: [.down, .repeat]) { press in
                 handle(press, shown: shown, reflow: reflow, proxy: proxy)
             }
-            .overlay { emptyState(libraryIsEmpty: journeys.isEmpty, noMatches: shown.isEmpty && !journeys.isEmpty) }
+            .overlay { noMatchesNotice(shown.isEmpty) }
         }
     }
 
@@ -155,18 +161,45 @@ struct MacShelfView: View {
         }
     }
 
+    /// No stories at all: no bookcase, just the invitation to start one (same as the iPhone shelf).
     @ViewBuilder
-    private func emptyState(libraryIsEmpty: Bool, noMatches: Bool) -> some View {
-        if libraryIsEmpty && syncState == .importingFirstTime {
+    private var emptyLibrary: some View {
+        if syncState == .importingFirstTime {
             VStack(spacing: 12) {
                 ProgressView()
                 Text("Bringing in your journeys from iCloud…")
             }
             .shelfNotice()
-        } else if libraryIsEmpty {
-            Text("Drag photos here, or press ⌘N to start your first journey.")
-                .shelfNotice()
-        } else if noMatches {
+        } else {
+            VStack(spacing: 16) {
+                Image(systemName: "book.closed")
+                    .font(.system(size: 56)).foregroundStyle(KraftColor.kraftDark)
+                    .accessibilityHidden(true)
+                Text("No stories yet").font(.title3.weight(.semibold)).foregroundStyle(KraftColor.ink)
+                Text("Turn a trip into a scrapbook you can share.")
+                    .font(.body).foregroundStyle(KraftColor.inkSoft)
+                    .multilineTextAlignment(.center)
+                Button { showCreate = true } label: {
+                    Label("New story", systemImage: "plus").padding(.horizontal, 8)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(KraftColor.route)
+                .controlSize(.large)
+                .accessibilityIdentifier("newStoryEmpty")
+                #if DEBUG
+                Button("Add sample journey") { SampleData.mumbai(in: context) }
+                    .buttonStyle(.link)
+                    .font(.footnote)
+                    .accessibilityIdentifier("addSampleJourneyEmpty")
+                #endif
+            }
+            .padding(32)
+        }
+    }
+
+    @ViewBuilder
+    private func noMatchesNotice(_ noMatches: Bool) -> some View {
+        if noMatches && !journeys.isEmpty {
             Text("No journeys match '\(query.trimmingCharacters(in: .whitespacesAndNewlines))'.")
                 .shelfNotice()
         }

@@ -26,7 +26,7 @@ struct JourneyWindowView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            JourneySidebar(model: model)
+            JourneySidebar(model: model, onAddStop: addStop)
                 .navigationSplitViewColumnWidth(min: 220, ideal: 280, max: 360)
         } detail: {
             JourneyStripView(model: model)
@@ -37,6 +37,11 @@ struct JourneyWindowView: View {
         }
         .navigationTitle(journey.title.isEmpty ? "Story" : journey.title)
         .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { addStop() } label: { Label("Add Stop", systemImage: "plus") }
+                    .help("Add a stop")
+                    .accessibilityIdentifier("addStop")
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button(model.inspectorShown ? "Done" : "Edit") { model.inspectorShown.toggle() }
                     .accessibilityIdentifier("editJourney")
@@ -123,9 +128,10 @@ struct JourneyWindowView: View {
     /// Inserts an untitled stop after the selected one (else at the end) and opens it in the inspector, name focused.
     private func addStop() {
         let stops = journey.orderedStops
-        let after = model.selectedStopID.flatMap { id in stops.firstIndex { $0.id.uuidString == id } }
+        let index = JourneyWindowModel.insertionIndex(selectedStopID: model.selectedStopID,
+                                                      stopIDs: stops.map { $0.id.uuidString })
         let stop = Stop(placeName: "")
-        editor.addStop(stop, to: journey, at: after.map { $0 + 1 })
+        editor.addStop(stop, to: journey, at: index)
         model.rebuild(from: journey)
         model.justAddedStopID = stop.id.uuidString
         model.inspectorShown = true

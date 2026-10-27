@@ -61,14 +61,42 @@ final class ShelfReflowTests: XCTestCase {
         let r = layout(0, 1000, 600)
         XCTAssertTrue(r.items.isEmpty)
         XCTAssertEqual(r.rows, 0)
-        XCTAssertEqual(r.wallRows, 2)
+        XCTAssertEqual(r.wallRows, 1)                       // a single plank until there are books to fill more
+    }
+
+    func testBookcaseGrowsOneShelfAtATime() {
+        // 1000 x 1000 window: 5 per shelf, up to 3 shelves
+        XCTAssertEqual(layout(2, 1000, 1000).wallRows, 1)
+        XCTAssertEqual(layout(5, 1000, 1000).wallRows, 1)
+        XCTAssertEqual(layout(6, 1000, 1000).wallRows, 2)
+        XCTAssertEqual(layout(10, 1000, 1000).wallRows, 2)
+        XCTAssertEqual(layout(11, 1000, 1000).wallRows, 3)
+        XCTAssertEqual(layout(15, 1000, 1000).items.last, .book(14))
+        let over = layout(16, 1000, 1000)                   // third shelf is full: last slot becomes "+N books"
+        XCTAssertEqual(over.wallRows, 3)
+        XCTAssertEqual(over.items.last, .more(hidden: 2))   // 16 journeys - 14 shown
+    }
+
+    func testCollapsedBookcaseNeverUsesMoreThanThreeShelves() {
+        XCTAssertEqual(layout(50, 1000, 2000).fitShelves, 3)
+        XCTAssertEqual(layout(50, 1000, 2000).wallRows, 3)
+    }
+
+    func testShortBookcaseIsCentredVertically() {
+        let one = layout(2, 1000, 1000)
+        XCTAssertEqual(one.topInset, (1000 - BookcaseReflow.shelfHeight) / 2, accuracy: 0.001)
+        XCTAssertEqual(one.contentHeight, 1000, accuracy: 0.001)
+        XCTAssertEqual(one.center(ofItem: 0, width: 1000).y, one.topInset + BookcaseReflow.roomAbove + 110, accuracy: 0.001)
+        let two = layout(6, 1000, 1000)
+        XCTAssertEqual(two.topInset, (1000 - 2 * BookcaseReflow.shelfHeight) / 2, accuracy: 0.001)
+        XCTAssertEqual(layout(11, 1000, 1000).topInset, (1000 - 3 * BookcaseReflow.shelfHeight) / 2, accuracy: 0.001)
     }
 
     func testSlotCentres() {
         let r = layout(10, 1000, 600)                       // 5 per shelf: row width 5 * 160 + 4 * 28 = 912, left 44
         let first = r.center(ofItem: 0, width: 1000)
         XCTAssertEqual(first.x, 44 + 80, accuracy: 0.001)
-        XCTAssertEqual(first.y, BookcaseReflow.roomAbove + 110, accuracy: 0.001)
+        XCTAssertEqual(first.y, r.topInset + BookcaseReflow.roomAbove + 110, accuracy: 0.001)
         let sixth = r.center(ofItem: 5, width: 1000)        // first book of the second shelf
         XCTAssertEqual(sixth.x, first.x, accuracy: 0.001)
         XCTAssertEqual(sixth.y, first.y + BookcaseReflow.shelfHeight, accuracy: 0.001)

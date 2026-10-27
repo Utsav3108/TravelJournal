@@ -48,6 +48,12 @@ final class JourneyWindowModel {
         if StripComposer.index(ofStop: hoveredStopID, in: items) == nil { hoveredStopID = nil }
     }
 
+    /// Where a new stop goes: right after the selected stop, else at the end.
+    nonisolated static func insertionIndex(selectedStopID: String?, stopIDs: [String]) -> Int {
+        guard let selectedStopID, let i = stopIDs.firstIndex(of: selectedStopID) else { return stopIDs.count }
+        return i + 1
+    }
+
     var selectedIndex: Int? { StripComposer.index(ofStop: selectedStopID, in: items) }
 
     func select(_ stopID: String?, center: Bool = true) {

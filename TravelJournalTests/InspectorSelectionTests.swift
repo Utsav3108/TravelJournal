@@ -55,5 +55,24 @@ final class InspectorSelectionTests: XCTestCase {
         journey.introNote = "hello"
         XCTAssertNotEqual(JourneyWindowModel.signature(of: journey), afterLeg)
     }
+
+    func testInsertionIndexGoesAfterSelectionElseEnd() {
+        let ids = ["a", "b", "c"]
+        XCTAssertEqual(JourneyWindowModel.insertionIndex(selectedStopID: nil, stopIDs: ids), 3)
+        XCTAssertEqual(JourneyWindowModel.insertionIndex(selectedStopID: "a", stopIDs: ids), 1)
+        XCTAssertEqual(JourneyWindowModel.insertionIndex(selectedStopID: "c", stopIDs: ids), 3)
+        XCTAssertEqual(JourneyWindowModel.insertionIndex(selectedStopID: "gone", stopIDs: ids), 3)
+        XCTAssertEqual(JourneyWindowModel.insertionIndex(selectedStopID: nil, stopIDs: []), 0)
+    }
+
+    func testAddingAtInsertionIndexPlacesStopAfterSelection() {
+        let journey = makeJourney()
+        let stops = journey.orderedStops
+        let index = JourneyWindowModel.insertionIndex(selectedStopID: stops[0].id.uuidString,
+                                                      stopIDs: stops.map { $0.id.uuidString })
+        JourneyEditor(context: container.mainContext, photos: NoopPhotoStore())
+            .addStop(Stop(placeName: "New"), to: journey, at: index)
+        XCTAssertEqual(journey.orderedStops.map(\.placeName), ["A", "New", "B", "C"])
+    }
 }
 #endif

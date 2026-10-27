@@ -5,6 +5,7 @@ import SwiftUI
 /// strip) and highlight together when hovered.
 struct JourneySidebar: View {
     @Bindable var model: JourneyWindowModel
+    let onAddStop: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -12,6 +13,17 @@ struct JourneySidebar: View {
                 JourneyMapCard(overview: overview, model: model)
                     .padding(12)
             }
+            HStack {
+                Text("Stops").font(.headline)
+                Spacer()
+                Button(action: onAddStop) { Image(systemName: "plus") }
+                    .buttonStyle(.borderless)
+                    .help("Add a stop")
+                    .accessibilityLabel("Add Stop")
+                    .accessibilityIdentifier("sidebarAddStop")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 6)
             List(selection: selection) {
                 ForEach(model.overview?.stops ?? []) { stop in
                     row(stop)
@@ -20,8 +32,13 @@ struct JourneySidebar: View {
             .listStyle(.sidebar)
             .overlay {
                 if model.overview?.stops.isEmpty ?? true {
-                    ContentUnavailableView("No stops yet", systemImage: "mappin.slash",
-                                           description: Text("Press Edit to add the first stop."))
+                    ContentUnavailableView {
+                        Label("No stops yet", systemImage: "mappin.slash")
+                    } description: {
+                        Text("Add the first stop to start writing your story.")
+                    } actions: {
+                        Button("Add Stop", action: onAddStop).buttonStyle(.borderedProminent)
+                    }
                 }
             }
         }

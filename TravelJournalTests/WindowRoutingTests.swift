@@ -4,6 +4,17 @@ import SwiftData
 
 @MainActor
 final class WindowRoutingTests: XCTestCase {
+    func testMakeUntitledSavesAnEmptyUntitledJourney() throws {
+        let container = AppContainer.make(inMemory: true)
+        let context = ModelContext(container)
+        let journey = Journey.makeUntitled(in: context)
+
+        XCTAssertEqual(journey.title, "Untitled")
+        XCTAssertTrue(journey.orderedStops.isEmpty)
+        let found = try context.fetch(FetchDescriptor<Journey>(predicate: Journey.matching(id: journey.id)))
+        XCTAssertEqual(found.count, 1)
+    }
+
     func testPredicateFindsOnlyTheJourneyWithThatID() throws {
         let container = AppContainer.make(inMemory: true)
         let context = ModelContext(container)

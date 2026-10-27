@@ -16,9 +16,6 @@ struct MacShelfView: View {
     @State private var sort: ShelfSort = .newest
     @State private var selection: UUID?
     @State private var expanded = false
-    @State private var showCreate = false
-    /// The create sheet was opened by "New Journey from Photos…", so the new journey opens straight into the import sheet.
-    @State private var createFromPhotos = false
     @State private var pendingDelete: Journey?
     @State private var renaming: Journey?
     @State private var renameText = ""
@@ -42,7 +39,7 @@ struct MacShelfView: View {
                 .searchable(text: $query, prompt: "Search journeys")
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
-                        Button { showCreate = true } label: { Label("New story", systemImage: "plus") }
+                        Button { createJourney() } label: { Label("New story", systemImage: "plus") }
                             .accessibilityIdentifier("newStoryToolbar")
                     }
                     ToolbarItem(placement: .primaryAction) {
@@ -71,13 +68,6 @@ struct MacShelfView: View {
         #if DEBUG
         .task { debugLaunchArguments() }
         #endif
-        .sheet(isPresented: $showCreate, onDismiss: { createFromPhotos = false }) {
-            CreateJourneyView { journey in
-                if createFromPhotos { newJourneyRequests?.importOnOpen.insert(journey.id) }
-                open(journey)
-            }
-            .preferredColorScheme(.light)
-        }
         .confirmationDialog(
             "Delete this story?",
             isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
@@ -179,7 +169,7 @@ struct MacShelfView: View {
                 Text("Turn a trip into a scrapbook you can share.")
                     .font(.body).foregroundStyle(KraftColor.inkSoft)
                     .multilineTextAlignment(.center)
-                Button { showCreate = true } label: {
+                Button { createJourney() } label: {
                     Label("New story", systemImage: "plus").padding(.horizontal, 8)
                 }
                 .buttonStyle(.borderedProminent)
@@ -266,9 +256,17 @@ struct MacShelfView: View {
     private func consumeNewJourneyRequest() {
         guard let requests = newJourneyRequests, requests.pending else { return }
         requests.pending = false
-        createFromPhotos = requests.fromPhotos
+        let fromPhotos = requests.fromPhotos
         requests.fromPhotos = false
-        showCreate = true
+        createJourney(fromPhotos: fromPhotos)
+    }
+
+    /// Creates an "Untitled" story and opens it straight in its own window with the details inspector showing.
+    private func createJourney(fromPhotos: Bool = false) {
+        let journey = Journey.makeUntitled(in: context)
+        newJourneyRequests?.justCreated.insert(journey.id)
+        if fromPhotos { newJourneyRequests?.importOnOpen.insert(journey.id) }
+        open(journey)
     }
 
     #if DEBUG

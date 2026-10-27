@@ -36,6 +36,8 @@ struct JourneyWindowView: View {
                 .inspectorColumnWidth(min: 300, ideal: 340, max: 460)
         }
         .navigationTitle(journey.title.isEmpty ? "Story" : journey.title)
+        // Same transparent title bar with the inspector open or closed (it otherwise turns into an opaque white band).
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button { addStop() } label: { Label("Add Stop", systemImage: "plus") }
@@ -54,6 +56,7 @@ struct JourneyWindowView: View {
         .tint(KraftColor.route)
         .onAppear {
             model.rebuild(from: journey)
+            if newJourneyRequests?.justCreated.remove(journey.id) != nil { model.showJourneyDetails() }
             if newJourneyRequests?.importOnOpen.remove(journey.id) != nil { showImport = true }
             #if DEBUG
             // Debug launch args: -showInspector, -selectStop N (0-based)

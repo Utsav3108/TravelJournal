@@ -17,6 +17,8 @@ final class NewJourneyRequests {
     var fromPhotos = false
     /// Journeys whose window should present the import sheet when it opens.
     var importOnOpen: Set<UUID> = []
+    /// Journeys just created: their window opens with the details inspector showing so the title can be set.
+    var justCreated: Set<UUID> = []
 }
 
 private struct NewJourneyRequestsKey: EnvironmentKey {
@@ -47,6 +49,17 @@ extension EnvironmentValues {
 }
 
 extension Journey {
+    static let untitledTitle = "Untitled"
+
+    /// A new empty story titled "Untitled", saved and ready to open (Mac ⌘N skips any form).
+    @MainActor
+    static func makeUntitled(in context: ModelContext) -> Journey {
+        let journey = Journey(title: untitledTitle)
+        context.insert(journey)
+        try? context.save()
+        return journey
+    }
+
     /// Matches the one journey with this id (the value a Mac journey window is keyed by).
     static func matching(id: UUID) -> Predicate<Journey> {
         #Predicate<Journey> { $0.id == id }

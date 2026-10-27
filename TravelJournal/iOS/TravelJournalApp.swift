@@ -8,6 +8,7 @@ struct TravelJournalApp: App {
 
     init() {
         KraftFonts.register()
+        ExportPrivacySync.shared.start()   // no-op while ExportPrivacySync.enabled is false
     }
 
     var body: some Scene {

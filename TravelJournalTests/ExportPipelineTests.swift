@@ -125,19 +125,29 @@ final class ExportPipelineTests: XCTestCase {
         XCTAssertEqual(result.urls.count, 1)
     }
 
-    func testUnbuiltFormatsThrowAClearError() async {
+    func testDefaultPipelineHasRealRenderersForEveryFormat() {
         let f = JourneyFixtures.oneStop()
         let pipeline = ExportPipeline()
-        for format in [ExportFormat.carousel, .story] {
+        XCTAssertTrue(pipeline.renderer(for: .pdf) is PDFExportRenderer)
+        XCTAssertTrue(pipeline.renderer(for: .carousel) is CarouselRenderer)
+        XCTAssertTrue(pipeline.renderer(for: .story) is StoryRenderer)
+        for format in ExportFormat.allCases {
             let options = ExportOptions(format: format, privacy: showAll)
-            XCTAssertEqual(pipeline.estimateSlices(f.journey, options: options), 0)
-            do {
-                _ = try await pipeline.render(f.journey, options: options)
-                XCTFail("\(format) should not render yet")
-            } catch {
-                XCTAssertEqual(error as? ExportPipelineError, .notBuiltYet(format))
-                XCTAssertTrue(error.localizedDescription.contains(format.displayName))
-            }
+            XCTAssertGreaterThan(pipeline.estimateSlices(f.journey, options: options), 0, "\(format)")
+        }
+    }
+
+    func testUnbuiltRendererThrowsAClearError() async {
+        let f = JourneyFixtures.oneStop()
+        let pipeline = ExportPipeline(renderers: [.carousel: UnbuiltExportRenderer(format: .carousel)])
+        let options = ExportOptions(format: .carousel, privacy: showAll)
+        XCTAssertEqual(pipeline.estimateSlices(f.journey, options: options), 0)
+        do {
+            _ = try await pipeline.render(f.journey, options: options)
+            XCTFail("an unbuilt renderer should throw")
+        } catch {
+            XCTAssertEqual(error as? ExportPipelineError, .notBuiltYet(.carousel))
+            XCTAssertTrue(error.localizedDescription.contains(ExportFormat.carousel.displayName))
         }
     }
 

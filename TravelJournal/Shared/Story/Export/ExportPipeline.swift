@@ -115,11 +115,10 @@ final class ExportPipeline {
         self.renderers = Self.defaultRenderers().merging(renderers) { _, injected in injected }
     }
 
-    /// PDF is real; carousel and Story are stubs until agents F and G land.
     static func defaultRenderers() -> [ExportFormat: any ExportRenderer] {
         [.pdf: PDFExportRenderer(),
-         .carousel: UnbuiltExportRenderer(format: .carousel),
-         .story: UnbuiltExportRenderer(format: .story)]
+         .carousel: CarouselRenderer(),
+         .story: StoryRenderer()]
     }
 
     func renderer(for format: ExportFormat) -> any ExportRenderer {

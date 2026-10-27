@@ -12,6 +12,7 @@ struct TravelJournalMacApp: App {
 
     init() {
         KraftFonts.register()
+        ExportPrivacySync.shared.start()   // no-op while ExportPrivacySync.enabled is false
         let store = StoreLoader(factory: AppContainer.launchFactory())
         _store = State(initialValue: store)
         _sync = State(initialValue: SyncStatusModel.live(hasLocalData: {

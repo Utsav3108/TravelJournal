@@ -13,7 +13,7 @@ enum StoryPDFExportError: LocalizedError {
         switch self {
         case .noStops: "Add at least one stop before exporting a PDF."
         case .allStopsHidden: "Every stop is hidden from public exports. Show at least one stop under Export privacy."
-        case .cannotCreateFile: "The PDF file could not be created."
+        case .cannotCreateFile: "The export file could not be created."
         }
     }
 }

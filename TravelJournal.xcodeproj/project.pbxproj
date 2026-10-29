@@ -377,8 +377,10 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos to add straight into your story.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Used to centre place search near you and to tag photos you take. Never tracked in the background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Used only while you hold the speak button, to turn what you say into stop details. Audio is processed on your Mac and never leaves it.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "TravelJournal saves your exported carousel and Story images to Photos.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "TravelJournal reads the place and time of the photos you pick, to group them into stops. Your photos stay on your device.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Turns your spoken notes into text on your Mac. Nothing is sent to a server.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -420,8 +422,10 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos to add straight into your story.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Used to centre place search near you and to tag photos you take. Never tracked in the background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Used only while you hold the speak button, to turn what you say into stop details. Audio is processed on your Mac and never leaves it.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "TravelJournal saves your exported carousel and Story images to Photos.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "TravelJournal reads the place and time of the photos you pick, to group them into stops. Your photos stay on your device.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Turns your spoken notes into text on your Mac. Nothing is sent to a server.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

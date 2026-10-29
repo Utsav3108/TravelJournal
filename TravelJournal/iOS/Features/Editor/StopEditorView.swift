@@ -48,6 +48,16 @@ struct StopEditorView: View {
     }
 }
 
+/// Mac-only hold-to-speak hooks for the story header and the fill highlight; nil on iPhone and on Macs without
+/// on-device speech and language models.
+struct StopVoiceHooks {
+    var isListening: Bool
+    /// `VoiceField.rawValue`s whose rows should flash right now.
+    var freshKeys: Set<String>
+    var press: () -> Void
+    var release: () -> Void
+}
+
 /// The stop form, shared by the iPhone editor screen and the Mac inspector.
 struct StopFormView: View {
     @Bindable var stop: Stop
@@ -59,13 +69,15 @@ struct StopFormView: View {
     let canEditPhotos: Bool
     /// The Mac inspector focuses the name of a stop it has just added.
     let focusNameOnAppear: Bool
+    let voice: StopVoiceHooks?
     @State private var picks: [PhotosPickerItem] = []
     @State private var importNote: String?
     @FocusState private var nameFocused: Bool
 
     init(stop: Stop, journey: Journey, costText: Binding<String>, minutesText: Binding<String>,
          showPlaceSearch: Binding<Bool>, photoStore: any PhotoStoring, canEditPhotos: Bool,
-         focusNameOnAppear: Bool = false) {
+         focusNameOnAppear: Bool = false, voice: StopVoiceHooks? = nil) {
+        self.voice = voice
         self.stop = stop
         self.journey = journey
         self._costText = costText
@@ -105,6 +117,12 @@ struct StopFormView: View {
         .onAppear { if focusNameOnAppear { nameFocused = true } }
     }
 
+    /// Row background that flashes yellow while dictation has just filled `key`, then fades back.
+    private func flash(_ key: String) -> Color? {
+        guard let voice else { return nil }   // no voice (iPhone, unsupported Mac): leave the row background alone
+        return voice.freshKeys.contains(key) ? KraftColor.highlighter : Color.clear
+    }
+
     // MARK: Sections
 
     private var placeSection: some View {
@@ -115,6 +133,7 @@ struct StopFormView: View {
                 .font(KraftFont.stopName(28, scaled: true))
                 .focused($nameFocused)
                 .accessibilityIdentifier("placeName")
+                .listRowBackground(flash("place"))
             Picker("Category", selection: Binding(get: { stop.category }, set: { stop.category = $0 })) {
                 Text("None").tag(StopCategory?.none)
                 ForEach(StopCategory.allCases, id: \.self) { c in
@@ -123,6 +142,7 @@ struct StopFormView: View {
                     }.tag(StopCategory?.some(c))
                 }
             }
+            .listRowBackground(flash("category"))
         } header: { Text("Place") }
     }
 
@@ -134,8 +154,22 @@ struct StopFormView: View {
                 .font(KraftFont.body(16, scaled: true))
                 .lineSpacing(KraftFont.bodyLineSpacing)
                 .frame(minHeight: 140)
+                .overlay(alignment: .topLeading) {
+                    if voice != nil, stop.story.isEmpty {
+                        Text("What do you remember? Or hold space and talk.")
+                            .font(KraftFont.body(16, scaled: true)).foregroundStyle(KraftColor.inkSoft.opacity(0.6))
+                            .padding(.leading, 5).allowsHitTesting(false)
+                    }
+                }
                 .accessibilityIdentifier("storyEditor")
-        } header: { Text("Story") } footer: {
+                .listRowBackground(flash("story"))
+        } header: {
+            if let voice {
+                HStack { Text("Story"); Spacer(); StoryVoiceLink(voice: voice) }
+            } else {
+                Text("Story")
+            }
+        } footer: {
             HStack { Spacer(); WordCounter(text: stop.story) }
         }
     }
@@ -166,6 +200,7 @@ struct StopFormView: View {
                     get: { stop.arrivalTime ?? journey.date }, set: { stop.arrivalTime = $0 }),
                     displayedComponents: [.hourAndMinute])
                     .environment(\.timeZone, TimeZone(identifier: journey.timeZoneID) ?? .current)
+                    .listRowBackground(flash("arrived"))
             }
             HStack {
                 Text("Time spent")
@@ -179,6 +214,7 @@ struct StopFormView: View {
                     in: 0...1440, step: 5)
                     .labelsHidden()
             }
+            .listRowBackground(flash("timeSpent"))
         }
     }
 
@@ -207,6 +243,7 @@ struct StopFormView: View {
                 get: { stop.highlight ?? "" },
                 set: { let t = EditorLogic.limitedChars($0, max: EditorLogic.highlightMaxChars)
                        stop.highlight = t.isEmpty ? nil : t }))
+                .listRowBackground(flash("highlight"))
         }
     }
 
@@ -228,6 +265,7 @@ struct StopFormView: View {
                 }
                 Spacer()
             }
+            .listRowBackground(flash("rating"))
             TextField("Short review", text: Binding(
                 get: { stop.review ?? "" },
                 set: { let t = EditorLogic.limitedChars($0, max: EditorLogic.reviewMaxChars)
@@ -253,7 +291,34 @@ struct StopFormView: View {
                 }
                 .labelsHidden()
             }
+            .listRowBackground(flash("cost"))
         }
+    }
+}
+
+/// "Hold to speak" on the Story header; does the same as the sidebar button.
+private struct StoryVoiceLink: View {
+    let voice: StopVoiceHooks
+    @State private var held = false
+
+    var body: some View {
+        HStack(spacing: 5) {
+            HStack(spacing: 2) {
+                ForEach(0..<3, id: \.self) { k in
+                    Capsule().frame(width: 2, height: k == 1 ? 10 : 6)
+                }
+            }
+            Text(voice.isListening ? "Listening…" : "Hold to speak").font(.system(size: 11.5))
+        }
+        .foregroundStyle(KraftColor.route)
+        .contentShape(Rectangle())
+        .gesture(DragGesture(minimumDistance: 0)
+            .onChanged { _ in if !held { held = true; voice.press() } }
+            .onEnded { _ in if held { held = false; voice.release() } })
+        .accessibilityElement()
+        .accessibilityLabel("Hold to speak")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("storyVoiceLink")
     }
 }
 

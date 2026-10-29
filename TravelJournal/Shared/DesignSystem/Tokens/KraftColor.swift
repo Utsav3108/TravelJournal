@@ -24,6 +24,11 @@ enum KraftColor {
     static let stampTeal  = Color(hex: 0x3E6B6A)
     static let highlight  = Color(hex: 0xF2D06B, opacity: 0.70)
 
+    // Hold-to-speak card (design_handoff_hold_to_text).
+    static let routePressed = Color(hex: 0x7D2E25)
+    static let voiceCard    = Color(hex: 0xF6EFE3)
+    static let highlighter  = Color(hex: 0xF2D06B, opacity: 0.55)
+
     // Derived (not in spec).
     static let polaroidWhite = Color(hex: 0xFBF7EE)
     static let shadow        = Color(hex: 0x2B2420, opacity: 0.18)

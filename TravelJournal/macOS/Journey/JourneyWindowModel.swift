@@ -41,6 +41,7 @@ final class JourneyWindowModel {
     var centerRequest: CenterRequest?
 
     func rebuild(from journey: Journey) {
+        self.journey = journey
         let pages = StoryLayout().pages(for: journey)
         items = StripComposer.items(from: pages)
         overview = StripComposer.overview(from: pages)
@@ -56,7 +57,32 @@ final class JourneyWindowModel {
 
     var selectedIndex: Int? { StripComposer.index(ofStop: selectedStopID, in: items) }
 
+    /// Hold-to-speak, when the device supports it (nil otherwise: no voice UI). While it is listening or processing
+    /// the selection is locked, so the words can't land on a different stop.
+    var voice: VoiceDictationController?
+
+    private var selectionLocked: Bool { voice?.isBusy == true }
+
+    @ObservationIgnored private weak var journey: Journey?
+
+    /// The stop dictation would fill: only while the inspector is open (the "Edit" state) and a stop is selected.
+    var voiceStop: Stop? {
+        guard voice != nil, inspectorShown, selectedLegID == nil, let id = selectedStopID else { return nil }
+        return journey?.stops.first { $0.id.uuidString == id }
+    }
+
+    /// Button or Space down.
+    func voicePress() {
+        guard let voice, let stop = voiceStop, let journey else { return }
+        voice.begin(on: stop, journey: journey)
+    }
+
+    /// Button or Space up.
+    func voiceRelease() { voice?.end() }
+
     func select(_ stopID: String?, center: Bool = true) {
+        guard !selectionLocked else { return }
+        if stopID != selectedStopID { voice?.dismiss() }
         selectedStopID = stopID
         if stopID != nil { selectedLegID = nil }
         guard center, let i = StripComposer.index(ofStop: stopID, in: items) else { return }
@@ -65,12 +91,16 @@ final class JourneyWindowModel {
 
     /// A leg connector was clicked with the inspector open: the inspector edits that leg.
     func selectLeg(_ legID: String) {
+        guard !selectionLocked else { return }
+        voice?.dismiss()
         selectedLegID = legID
         selectedStopID = nil
     }
 
     /// ⌘I: the inspector shows the journey itself.
     func showJourneyDetails() {
+        guard !selectionLocked else { return }
+        voice?.dismiss()
         selectedLegID = nil
         selectedStopID = nil
         inspectorShown = true

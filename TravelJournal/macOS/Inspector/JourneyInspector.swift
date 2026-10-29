@@ -19,7 +19,7 @@ struct JourneyInspector: View {
             }
         case .stop(let id):
             if let stop = journey.stops.first(where: { $0.id.uuidString == id }) {
-                StopInspector(stop: stop, journey: journey, focusName: model.justAddedStopID == id,
+                StopInspector(stop: stop, journey: journey, model: model, focusName: model.justAddedStopID == id,
                               onDelete: { requestDelete(stop) })
                     .id(id)
             } else {
@@ -48,6 +48,7 @@ private struct JourneyInspectorForm: View {
 private struct StopInspector: View {
     let stop: Stop
     let journey: Journey
+    let model: JourneyWindowModel
     let focusName: Bool
     let onDelete: () -> Void
 
@@ -59,7 +60,7 @@ private struct StopInspector: View {
     var body: some View {
         StopFormView(stop: stop, journey: journey, costText: $costText, minutesText: $minutesText,
                      showPlaceSearch: $showPlaceSearch, photoStore: photoStore, canEditPhotos: true,
-                     focusNameOnAppear: focusName)
+                     focusNameOnAppear: focusName, voice: voiceHooks)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 HStack {
                     Button("Delete Stop…", role: .destructive, action: onDelete)
@@ -82,6 +83,13 @@ private struct StopInspector: View {
             }
             .undoTracked(StopContent(stop), target: stop) { $0.apply(to: stop) }
             .accessibilityIdentifier("stopInspector")
+    }
+
+    private var voiceHooks: StopVoiceHooks? {
+        guard let voice = model.voice else { return nil }
+        return StopVoiceHooks(isListening: voice.phase == .listening,
+                              freshKeys: Set(voice.freshFields.map(\.rawValue)),
+                              press: model.voicePress, release: model.voiceRelease)
     }
 
     private func syncTexts() {

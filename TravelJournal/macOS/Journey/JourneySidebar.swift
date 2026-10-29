@@ -7,6 +7,9 @@ struct JourneySidebar: View {
     @Bindable var model: JourneyWindowModel
     let onAddStop: () -> Void
 
+    /// Space kept free at the bottom of the stop list while the voice card floats over it.
+    private static let voiceCardClearance: CGFloat = 230
+
     var body: some View {
         VStack(spacing: 0) {
             if let overview = model.overview, overview.stops.contains(where: { $0.latitude != nil }) {
@@ -30,6 +33,8 @@ struct JourneySidebar: View {
                 }
             }
             .listStyle(.sidebar)
+            // Room for the voice card, which is drawn as an overlay below so it can't affect the column's layout.
+            .contentMargins(.bottom, model.voiceStop == nil ? 0 : Self.voiceCardClearance, for: .scrollContent)
             .overlay {
                 if model.overview?.stops.isEmpty ?? true {
                     ContentUnavailableView {
@@ -40,6 +45,12 @@ struct JourneySidebar: View {
                         Button("Add Stop", action: onAddStop).buttonStyle(.borderedProminent)
                     }
                 }
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if let voice = model.voice, let stop = model.voiceStop {
+                VoiceCardView(controller: voice, stop: stop, number: (model.selectedIndex ?? 0) + 1,
+                              press: model.voicePress, release: model.voiceRelease)
             }
         }
     }

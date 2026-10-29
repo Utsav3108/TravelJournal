@@ -58,7 +58,27 @@ struct JourneyStripView: View {
         .onAppear { focused = true }
         .onKeyPress(keys: [.leftArrow], phases: [.down, .repeat]) { press in step(-1, press) }
         .onKeyPress(keys: [.rightArrow], phases: [.down, .repeat]) { press in step(1, press) }
+        .onKeyPress(keys: [.space], phases: [.down, .repeat, .up]) { press in hold(press) }
         .accessibilityIdentifier("storyStrip")
+    }
+
+    /// Hold Space to dictate into the selected stop (edit mode only, never while typing in a field).
+    private func hold(_ press: KeyPress) -> KeyPress.Result {
+        guard press.modifiers.isEmpty, !TextInputFocus.isEditing else { return .ignored }
+        switch press.phase {
+        case .down:
+            guard model.voiceStop != nil else { return .ignored }
+            model.voicePress()
+            return .handled
+        case .repeat:
+            return model.voice?.phase == .listening ? .handled : .ignored   // key auto-repeat
+        case .up:
+            guard model.voice?.phase == .listening else { return .ignored }
+            model.voiceRelease()
+            return .handled
+        default:
+            return .ignored
+        }
     }
 
     private func step(_ direction: Int, _ press: KeyPress) -> KeyPress.Result {

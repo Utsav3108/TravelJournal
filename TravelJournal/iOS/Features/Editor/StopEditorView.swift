@@ -412,20 +412,34 @@ private struct PhotoTile: View {
 struct PlaceSearchSheet: View {
     @Bindable var stop: Stop
     @Environment(\.servicePlaceLookup) private var lookup
+
+    var body: some View {
+        PlaceSearchContent(stop: stop, lookup: lookup)
+        #if os(macOS)
+            // A Mac sheet sizes itself to its content, and an empty list has none: the results had no room to draw.
+            .frame(minWidth: 460, minHeight: 380)
+        #endif
+    }
+}
+
+private struct PlaceSearchContent: View {
+    @Bindable var stop: Stop
     @Environment(\.dismiss) private var dismiss
-    @State private var query = ""
-    @State private var results: [PlaceCandidate] = []
-    @State private var searching = false
-    @State private var searched = false
+    @State private var model: PlaceSearchModel
+
+    init(stop: Stop, lookup: any PlaceLookup) {
+        self.stop = stop
+        _model = State(initialValue: PlaceSearchModel(lookup: lookup, latitude: stop.latitude,
+                                                      longitude: stop.longitude, query: stop.placeName))
+    }
 
     var body: some View {
         NavigationStack {
             List {
-                if results.isEmpty {
-                    Text(searching ? "Searching..." : (searched ? "No places found." : "Type a place name to search."))
-                        .foregroundStyle(KraftColor.inkSoft)
+                if let message = model.message {
+                    Text(message).foregroundStyle(KraftColor.inkSoft)
                 }
-                ForEach(results) { c in
+                ForEach(model.results) { c in
                     Button { apply(c) } label: {
                         VStack(alignment: .leading) {
                             Text(c.name).foregroundStyle(KraftColor.ink)
@@ -437,20 +451,12 @@ struct PlaceSearchSheet: View {
             .calmForm()
             .navigationTitle("Find this place")
             .inlineNavigationTitle()
-            .drawerSearchable(text: $query)
-            .onSubmit(of: .search) { Task { await run() } }
+            .drawerSearchable(text: Binding(get: { model.query },
+                                            set: { model.query = $0; model.queryChanged() }))
+            .onSubmit(of: .search) { model.submit() }
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
-            .task { query = stop.placeName; if !query.isEmpty { await run() } }
+            .task { model.submit() }
         }
-    }
-
-    private func run() async {
-        let q = query.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return }
-        searching = true
-        results = await lookup.search(q, nearLatitude: stop.latitude, nearLongitude: stop.longitude)
-        searching = false
-        searched = true
     }
 
     private func apply(_ c: PlaceCandidate) {

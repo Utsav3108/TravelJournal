@@ -43,6 +43,14 @@ enum VoiceDraftMapper {
         if out.hasCost, allowed(.cost) { d.cost = out.cost }
         if out.hasMinutes, allowed(.minutes) { d.minutesSpent = out.minutesSpent }
         if out.hasTravelMode, allowed(.travelMode) { d.travelMode = out.travelMode }
+
+        // Clock times and durations are regular, and the model is unreliable on them: a rule result wins.
+        if let hhmm = VoiceTimeParser.arrival(in: transcript) { d.arrival = hhmm }
+        switch VoiceTimeParser.duration(in: transcript) {
+        case .minutes(let m): d.minutesSpent = m
+        case .travelOnly: d.minutesSpent = nil   // "walked 20 minutes" is travel, not time spent
+        case .none: break
+        }
         return d
     }
 
@@ -70,7 +78,7 @@ enum VoiceDraftMapper {
             case .cost: #"rupee|\brs\b|₹|\bfree\b|nothing|paid|cost|spent|price|fee\b|ticket|\bbill\b|\d{2,}"#
             case .minutes: #"hour|minute|\bmins?\b|\bhrs?\b"#
             case .travelMode: #"\bauto\b|rickshaw|\bcab\b|taxi|\bola\b|uber|\bbus\b|train|local|metro|\bwalk|\bbik(e|ed|ing)\b|rode|\bferry|boat"#
-            case .arrival: #"\b(am|pm)\b|\bat \d|\bat (noon|midnight)|reached|arrived|got (there|in)|quarter|noon|showed up|around \d"#
+            case .arrival: #"\b(a\.?m|p\.?m)\b|\bat \d|\bat (noon|midnight)|reached|arrived|got (there|in)|quarter|noon|showed up|around \d"#
             case .category: #"temple|mandir|food|ate|eat|lunch|dinner|breakfast|cafe|restaurant|thali|stay|hotel|room|hostel|zostel|shop|market|bought|souvenir|fort|palace|gate|mahal|minar|park|lake|beach|ghat|garden|caves|station|drive|chowk|haat|museum"#
             }
         }

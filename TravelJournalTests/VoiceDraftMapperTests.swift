@@ -61,6 +61,30 @@ final class VoiceDraftMapperTests: XCTestCase {
         XCTAssertNil(on.highlight)
     }
 
+    func testRulesFillArrivalAndMinutesTheModelMissed() {
+        let d = VoiceDraftMapper.draft(from: output(), transcript: "i arrived at 2 pm and spent about half an hour")
+        XCTAssertEqual(d.arrival, "14:00")
+        XCTAssertEqual(d.minutesSpent, 30)
+    }
+
+    func testRulesOverrideAWrongModelDuration() {
+        let out = output(hasMinutes: true, minutes: 60)
+        let d = VoiceDraftMapper.draft(from: out, transcript: "we spent an hour and a half there")
+        XCTAssertEqual(d.minutesSpent, 90)
+    }
+
+    func testTravelOnlyDurationDropsTheModelsMinutes() {
+        let out = output(hasMinutes: true, minutes: 20)
+        let d = VoiceDraftMapper.draft(from: out, transcript: "walked 20 minutes to get there")
+        XCTAssertNil(d.minutesSpent)
+    }
+
+    func testModelResultStandsWhenRulesFindNothing() {
+        let out = output(hasMinutes: true, minutes: 40)
+        let d = VoiceDraftMapper.draft(from: out, transcript: "we hung around for 40 mins")
+        XCTAssertEqual(d.minutesSpent, 40)
+    }
+
     func testGenericOrNumericPlaceNamesAreRejected() {
         for bad in ["place", "The Temple", "6pm", "rs", "room", "  "] {
             XCTAssertFalse(VoiceDraftMapper.isPlausiblePlace(bad), bad)

@@ -29,9 +29,29 @@ final class VoiceDraftApplierTests: XCTestCase {
         XCTAssertEqual(c.first, .place("Marine Drive"))
     }
 
-    func testExistingStopKeepsPlaceCategoryAndArrival() {
+    func testExistingStopKeepsItsPlaceButTakesArrivalAndMissingCategory() {
         let draft = VoiceStopDraft(placeName: "Elsewhere", category: .food, arrival: "09:00", rating: 4)
-        XCTAssertEqual(changes(draft, stop: filledStop()), [.rating(4)])
+        XCTAssertEqual(changes(draft, stop: filledStop()).map(\.field), [.category, .arrived, .rating])
+    }
+
+    func testExistingCategoryIsNotOverwritten() {
+        let stop = filledStop()
+        stop.category = .temple
+        XCTAssertTrue(changes(VoiceStopDraft(category: .food), stop: stop).isEmpty)
+    }
+
+    func testArrivalCorrectsAnExistingArrivalOnItsOwnDay() throws {
+        let stop = filledStop()
+        stop.arrivalTime = try XCTUnwrap(VoiceDraftApplier.arrival("08:30", on: base, in: zone))
+        let c = changes(VoiceStopDraft(arrival: "14:00"), stop: stop)
+        XCTAssertEqual(c, [.arrived(try XCTUnwrap(VoiceDraftApplier.arrival("14:00", on: base, in: zone)))])
+    }
+
+    func testArrivalAcceptsTwelveHourAnswersFromTheModel() throws {
+        let want = try XCTUnwrap(VoiceDraftApplier.arrival("14:00", on: base, in: zone))
+        for said in ["2 pm", "2:00 PM", "2 p.m.", "14:00"] {
+            XCTAssertEqual(VoiceDraftApplier.arrival(said, on: base, in: zone), want, said)
+        }
     }
 
     func testArrivalIsAppliedInJourneyTimeZone() throws {

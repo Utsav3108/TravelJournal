@@ -64,12 +64,14 @@ enum VoiceDraftApplier {
         let isNew = isNewStop(placeName: current.placeName, story: current.story)
         var out: [VoiceChange] = []
 
-        if isNew {
-            if let name = draft.placeName?.trimmed, !name.isEmpty { out.append(.place(name)) }
-            if let c = draft.category?.stopCategory, c.rawValue != current.categoryRaw { out.append(.category(c)) }
-            if let hhmm = draft.arrival, let d = arrival(hhmm, on: arrivalBase, in: timeZone), d != current.arrivalTime {
-                out.append(.arrived(d))
-            }
+        if isNew, let name = draft.placeName?.trimmed, !name.isEmpty { out.append(.place(name)) }
+        // A category is only filled where there is none yet (or on a new stop); it is a guess, not a statement.
+        if let c = draft.category?.stopCategory, isNew || current.categoryRaw == nil, c.rawValue != current.categoryRaw {
+            out.append(.category(c))
+        }
+        // An arrival time is something the traveller states outright, so it also corrects an existing stop.
+        if let hhmm = draft.arrival, let d = arrival(hhmm, on: arrivalBase, in: timeZone), d != current.arrivalTime {
+            out.append(.arrived(d))
         }
         if let m = draft.minutesSpent {
             let v = min(max(m, 0), 24 * 60)
@@ -100,11 +102,18 @@ enum VoiceDraftApplier {
         return out
     }
 
-    /// "14:30" on the day of `base` in `zone`; nil when it isn't a valid 24-hour time.
+    /// The time of day `hhmm` on the day of `base` in `zone`. Accepts "14:30" and, as a model might answer, "2:30 PM"
+    /// or "2 pm"; nil when it isn't a valid time.
     static func arrival(_ hhmm: String, on base: Date, in zone: TimeZone) -> Date? {
         let parts = hhmm.trimmed.split(separator: ":")
-        guard parts.count == 2, let h = Int(parts[0]), let m = Int(parts[1]),
-              (0..<24).contains(h), (0..<60).contains(m) else { return nil }
+        var time: (Int, Int)?
+        if parts.count == 2, let h = Int(parts[0]), let m = Int(parts[1]), (0..<24).contains(h), (0..<60).contains(m) {
+            time = (h, m)
+        } else if let normalized = VoiceTimeParser.arrival(in: hhmm) {
+            let hm = normalized.split(separator: ":").compactMap { Int($0) }
+            if hm.count == 2 { time = (hm[0], hm[1]) }
+        }
+        guard let (h, m) = time else { return nil }
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = zone
         return cal.date(bySettingHour: h, minute: m, second: 0, of: base)

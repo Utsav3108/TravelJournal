@@ -1,0 +1,25 @@
+// Shape that was measured (harness copy; Guide texts for has* flags are inline). App maps has*==false -> nil.
+// story/highlight are only trusted when hasStory. Replace P.x with VoiceExtractionPrompts.x.
+@Generable
+struct VoiceStopDraft: Equatable {
+    @Guide(description: "true only if a specific place name was spoken") var hasPlace: Bool
+    @Guide(description: P.placeName) var placeName: String
+    @Guide(description: "true only if the kind of place is clearly stated or obvious from its name") var hasCategory: Bool
+    @Guide(description: P.category) var category: Category
+    @Guide(description: "true only if an arrival clock time was spoken") var hasArrival: Bool
+    @Guide(description: P.arrival) var arrival: String
+    @Guide(description: "true only if the traveller described the visit or experience in words") var hasStory: Bool
+    @Guide(description: P.story) var story: String
+    @Guide(description: P.highlight) var highlight: String
+    @Guide(description: "true only if a star rating or score out of 5 was spoken") var hasRating: Bool
+    @Guide(description: P.rating, .range(1...5)) var rating: Int
+    @Guide(description: "true only if an amount of money or free was spoken") var hasCost: Bool
+    @Guide(description: P.cost, .range(0...10_000_000)) var cost: Double
+    @Guide(description: "true only if a duration spent at the place was spoken") var hasMinutes: Bool
+    @Guide(description: P.minutes, .range(0...1440)) var minutesSpent: Int
+    @Guide(description: "true only if a vehicle or walking was explicitly spoken") var hasTravelMode: Bool
+    @Guide(description: P.travelMode) var travelMode: TravelMode
+    @Generable enum Category: String, CaseIterable { case food, landmark, temple, stay, shopping, nature, other }
+    @Generable enum TravelMode: String, CaseIterable { case walk, autoRickshaw, taxi, bus, localTrain, metro, bike, ferry }
+}
+

@@ -85,6 +85,8 @@ private struct JourneyMapCard: View {
     @Environment(\.displayScale) private var displayScale
     @State private var snap: MapSnap?
 
+    private static let minimumMapWidth = 100
+
     private struct SnapshotKey: Hashable {
         var stops: [OverviewStop]
         var width: Int
@@ -106,8 +108,18 @@ private struct JourneyMapCard: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .task(id: key) {
-                let request = CGSize(width: CGFloat(max(key.width, 20)), height: CGFloat(max(key.width, 20)) / 1.25)
-                snap = await MapSnapshotService.shared.snapshot(for: overview, size: request, scale: displayScale)
+                // The first layout pass can report a sliver of a width; a map requested at that size is a thumbnail
+                // that would be stretched over the whole card.
+                guard key.width >= Self.minimumMapWidth else { return }
+                // Wait out window zoom/resize animations: each intermediate width would otherwise start its own
+                // snapshot, and a stale small one can finish last. `.task(id:)` cancels this sleep on the next width.
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+                let request = CGSize(width: CGFloat(key.width), height: CGFloat(key.width) / 1.25)
+                let result = await MapSnapshotService.shared.snapshot(for: overview, size: request, scale: displayScale)
+                // A superseded request can still finish after the current one; it must not replace the better map.
+                guard !Task.isCancelled else { return }
+                snap = result
             }
         }
         .aspectRatio(1.25, contentMode: .fit)

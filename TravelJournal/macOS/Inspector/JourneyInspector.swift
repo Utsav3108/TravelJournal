@@ -1,6 +1,7 @@
 #if os(macOS)
 import SwiftUI
 import SwiftData
+import CoreLocation
 
 /// The right-hand inspector: edits whatever is selected (a leg, a stop, else the journey itself) and applies changes
 /// live. The forms are the iPhone's, shared; this file only picks one and wires in undo and delete.
@@ -19,7 +20,7 @@ struct JourneyInspector: View {
             }
         case .stop(let id):
             if let stop = journey.stops.first(where: { $0.id.uuidString == id }) {
-                StopInspector(stop: stop, journey: journey, focusName: model.justAddedStopID == id,
+                StopInspector(stop: stop, journey: journey, model: model, focusName: model.justAddedStopID == id,
                               onDelete: { requestDelete(stop) })
                     .id(id)
             } else {
@@ -37,6 +38,8 @@ private struct JourneyInspectorForm: View {
     var body: some View {
         Form {
             JourneyFieldsSection(journey: journey)
+            MapLocationSection(journey: journey)
+            MapPinSection(journey: journey)
             JourneyExportPrivacySection(journey: journey)
         }
         .calmForm()
@@ -48,6 +51,7 @@ private struct JourneyInspectorForm: View {
 private struct StopInspector: View {
     let stop: Stop
     let journey: Journey
+    let model: JourneyWindowModel
     let focusName: Bool
     let onDelete: () -> Void
 
@@ -59,7 +63,7 @@ private struct StopInspector: View {
     var body: some View {
         StopFormView(stop: stop, journey: journey, costText: $costText, minutesText: $minutesText,
                      showPlaceSearch: $showPlaceSearch, photoStore: photoStore, canEditPhotos: true,
-                     focusNameOnAppear: focusName)
+                     focusNameOnAppear: focusName, voice: voiceHooks)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 HStack {
                     Button("Delete Stop…", role: .destructive, action: onDelete)
@@ -84,6 +88,13 @@ private struct StopInspector: View {
             .accessibilityIdentifier("stopInspector")
     }
 
+    private var voiceHooks: StopVoiceHooks? {
+        guard let voice = model.voice else { return nil }
+        return StopVoiceHooks(isListening: voice.phase == .listening,
+                              freshKeys: Set(voice.freshFields.map(\.rawValue)),
+                              press: model.voicePress, release: model.voiceRelease)
+    }
+
     private func syncTexts() {
         costText = stop.costAmount.map { "\($0)" } ?? ""
         minutesText = stop.timeSpentMinutes.map(String.init) ?? ""
@@ -96,7 +107,30 @@ private struct LegInspector: View {
     var body: some View {
         LegEditorView(leg: leg)
             .undoTracked(LegContent(leg), target: leg) { $0.apply(to: leg) }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                HStack {
+                    Button("Open in Maps", action: openInMaps)
+                        .disabled(endpoints == nil)
+                        .help(endpoints == nil ? "Both stops need a location" : "Directions for this leg in Maps")
+                        .accessibilityIdentifier("openLegInMaps")
+                    Spacer()
+                }
+                .padding(12)
+                .background(.bar)
+            }
             .accessibilityIdentifier("legInspector")
+    }
+
+    private var endpoints: (from: Stop, to: Stop)? {
+        guard let from = leg.fromStop, let to = leg.toStop, from.coordinate != nil, to.coordinate != nil else { return nil }
+        return (from, to)
+    }
+
+    private func openInMaps() {
+        guard let (from, to) = endpoints, let a = from.coordinate, let b = to.coordinate else { return }
+        MapsLauncher.openLeg(fromName: from.placeName, from: Coordinate(latitude: a.latitude, longitude: a.longitude),
+                             toName: to.placeName, to: Coordinate(latitude: b.latitude, longitude: b.longitude),
+                             mode: leg.mode)
     }
 }
 

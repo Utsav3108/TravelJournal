@@ -22,7 +22,7 @@ struct JourneyShelfView: View {
                 KraftColor.paper.ignoresSafeArea()
                 if journeys.isEmpty { emptyState } else { shelf }
             }
-            .navigationTitle("My Stories")
+            .navigationTitle("My Journeys")
             .toolbar {
                 ToolbarItem(placement: .navigation) {
                     Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
@@ -35,7 +35,7 @@ struct JourneyShelfView: View {
                 #if DEBUG
                 ToolbarItem(placement: .secondaryAction) {
                     Button("Add sample journey", systemImage: "wand.and.stars") {
-                        SampleData.mumbai(in: context)
+                        SampleData.newYork(in: context)
                     }
                     .accessibilityIdentifier("addSampleJourney")
                 }
@@ -47,7 +47,7 @@ struct JourneyShelfView: View {
                 // Debug launch args: -openSample (journey detail), -openSampleStop (stop editor), -openSettings
                 // -seedSample (one story), -seedLibrary N (N stories across countries)
                 let args = ProcessInfo.processInfo.arguments
-                if args.contains("-seedSample"), journeys.isEmpty { SampleData.mumbai(in: context) }
+                if args.contains("-seedSample"), journeys.isEmpty { SampleData.newYork(in: context) }
                 SampleData.seedFromLaunchArguments(in: context)
                 if args.contains("-openSettings") { showSettings = true }   // debug aid
                 if let i = args.firstIndex(of: "-openRack") {
@@ -60,7 +60,7 @@ struct JourneyShelfView: View {
                     return
                 }
                 guard args.contains("-openSample") || args.contains("-openSampleStop") || args.contains("-openSampleStory") else { return }
-                let j = journeys.first ?? SampleData.mumbai(in: context)
+                let j = journeys.first ?? SampleData.newYork(in: context)
                 path = [.journeyDetail(j.persistentModelID)]
                 if args.contains("-openSampleStory") { path.append(.story(j.persistentModelID)) }
                 if args.contains("-openSampleStop"), let s = j.orderedStops.first {
@@ -152,7 +152,7 @@ struct JourneyShelfView: View {
             .controlSize(.large)
             .accessibilityIdentifier("newStoryEmpty")
             #if DEBUG
-            Button("Add sample journey") { SampleData.mumbai(in: context) }
+            Button("Add sample journey") { SampleData.newYork(in: context) }
                 .font(.footnote)
                 .accessibilityIdentifier("addSampleJourneyEmpty")
             #endif

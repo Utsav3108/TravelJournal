@@ -14,7 +14,7 @@ struct JourneyWindowView: View {
     @Environment(\.servicePlaceLookup) private var placeLookup
     @Environment(\.newJourneyRequests) private var newJourneyRequests
 
-    @State private var model = JourneyWindowModel()
+    @State private var model: JourneyWindowModel
     @State private var columnVisibility = NavigationSplitViewVisibility.all
     @State private var pendingDelete: Stop?
     @State private var pendingMove: PendingMove?
@@ -22,11 +22,17 @@ struct JourneyWindowView: View {
 
     private struct PendingMove { let from: IndexSet; let to: Int }
 
+    /// `model` is injectable so layout tests can put the window in a state (selection, inspector) before it appears.
+    init(journey: Journey, model: JourneyWindowModel? = nil) {
+        self.journey = journey
+        _model = State(initialValue: model ?? JourneyWindowModel())
+    }
+
     private var editor: JourneyEditor { JourneyEditor(context: context, photos: photoStore, undoManager: undoManager) }
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            JourneySidebar(model: model, onAddStop: addStop)
+            JourneySidebar(model: model, journey: journey, onAddStop: addStop)
                 .navigationSplitViewColumnWidth(min: 220, ideal: 280, max: 360)
         } detail: {
             JourneyStripView(model: model)
@@ -55,6 +61,7 @@ struct JourneyWindowView: View {
         .measuringStatusBarInset()
         .tint(KraftColor.route)
         .onAppear {
+            if model.voice == nil { model.voice = VoiceDictationController.makeDefault() }
             model.rebuild(from: journey)
             if newJourneyRequests?.justCreated.remove(journey.id) != nil { model.showJourneyDetails() }
             if newJourneyRequests?.importOnOpen.remove(journey.id) != nil { showImport = true }

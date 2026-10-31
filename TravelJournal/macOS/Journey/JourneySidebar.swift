@@ -5,7 +5,14 @@ import SwiftUI
 /// strip) and highlight together when hovered.
 struct JourneySidebar: View {
     @Bindable var model: JourneyWindowModel
+    let journey: Journey
     let onAddStop: () -> Void
+
+    @State private var showMapsLocations = false
+    @State private var showRoute = false
+
+    /// Space kept free at the bottom of the stop list while the voice card floats over it.
+    private static let voiceCardClearance: CGFloat = 230
 
     var body: some View {
         VStack(spacing: 0) {
@@ -16,6 +23,18 @@ struct JourneySidebar: View {
             HStack {
                 Text("Stops").font(.headline)
                 Spacer()
+                Button(action: showJourneyRoute) { Image(systemName: "point.topleft.down.to.point.bottomright.curvepath") }
+                    .buttonStyle(.borderless)
+                    .disabled(model.overview?.stops.isEmpty ?? true)
+                    .help("Show route")
+                    .accessibilityLabel("Show Route")
+                    .accessibilityIdentifier("sidebarShowRoute")
+                Button(action: openInMaps) { Image(systemName: "map") }
+                    .buttonStyle(.borderless)
+                    .disabled(model.overview?.stops.isEmpty ?? true)
+                    .help("Open in Maps")
+                    .accessibilityLabel("Open in Maps")
+                    .accessibilityIdentifier("sidebarOpenInMaps")
                 Button(action: onAddStop) { Image(systemName: "plus") }
                     .buttonStyle(.borderless)
                     .help("Add a stop")
@@ -30,6 +49,8 @@ struct JourneySidebar: View {
                 }
             }
             .listStyle(.sidebar)
+            // Room for the voice card, which is drawn as an overlay below so it can't affect the column's layout.
+            .contentMargins(.bottom, model.voiceStop == nil ? 0 : Self.voiceCardClearance, for: .scrollContent)
             .overlay {
                 if model.overview?.stops.isEmpty ?? true {
                     ContentUnavailableView {
@@ -41,6 +62,34 @@ struct JourneySidebar: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showMapsLocations) {
+            MapsLocationsSheet(journey: journey, onOpen: MapsLauncher.open).preferredColorScheme(.light)
+        }
+        .sheet(isPresented: $showRoute) {
+            if let overview = model.overview { JourneyRouteSheet(overview: overview).preferredColorScheme(.light) }
+        }
+        .overlay(alignment: .bottom) {
+            if let voice = model.voice, let stop = model.voiceStop {
+                VoiceCardView(controller: voice, stop: stop, number: (model.selectedIndex ?? 0) + 1,
+                              press: model.voicePress, release: model.voiceRelease)
+            }
+        }
+    }
+
+    private func showJourneyRoute() {
+        guard let overview = model.overview else { return }
+        switch JourneyMapsLogic.readiness(for: overview) {
+        case .ready: showRoute = true
+        case .needsLocations: showMapsLocations = true
+        }
+    }
+
+    private func openInMaps() {
+        guard let overview = model.overview else { return }
+        switch JourneyMapsLogic.readiness(for: overview) {
+        case .ready(let pins): MapsLauncher.open(pins)
+        case .needsLocations: showMapsLocations = true
         }
     }
 
@@ -74,6 +123,8 @@ private struct JourneyMapCard: View {
     @Environment(\.displayScale) private var displayScale
     @State private var snap: MapSnap?
 
+    private static let minimumMapWidth = 100
+
     private struct SnapshotKey: Hashable {
         var stops: [OverviewStop]
         var width: Int
@@ -95,8 +146,18 @@ private struct JourneyMapCard: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .task(id: key) {
-                let request = CGSize(width: CGFloat(max(key.width, 20)), height: CGFloat(max(key.width, 20)) / 1.25)
-                snap = await MapSnapshotService.shared.snapshot(for: overview, size: request, scale: displayScale)
+                // The first layout pass can report a sliver of a width; a map requested at that size is a thumbnail
+                // that would be stretched over the whole card.
+                guard key.width >= Self.minimumMapWidth else { return }
+                // Wait out window zoom/resize animations: each intermediate width would otherwise start its own
+                // snapshot, and a stale small one can finish last. `.task(id:)` cancels this sleep on the next width.
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+                let request = CGSize(width: CGFloat(key.width), height: CGFloat(key.width) / 1.25)
+                let result = await MapSnapshotService.shared.snapshot(for: overview, size: request, scale: displayScale)
+                // A superseded request can still finish after the current one; it must not replace the better map.
+                guard !Task.isCancelled else { return }
+                snap = result
             }
         }
         .aspectRatio(1.25, contentMode: .fit)

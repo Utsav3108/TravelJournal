@@ -48,6 +48,16 @@ struct StopEditorView: View {
     }
 }
 
+/// Mac-only hold-to-speak hooks for the story header and the fill highlight; nil on iPhone and on Macs without
+/// on-device speech and language models.
+struct StopVoiceHooks {
+    var isListening: Bool
+    /// `VoiceField.rawValue`s whose rows should flash right now.
+    var freshKeys: Set<String>
+    var press: () -> Void
+    var release: () -> Void
+}
+
 /// The stop form, shared by the iPhone editor screen and the Mac inspector.
 struct StopFormView: View {
     @Bindable var stop: Stop
@@ -59,13 +69,15 @@ struct StopFormView: View {
     let canEditPhotos: Bool
     /// The Mac inspector focuses the name of a stop it has just added.
     let focusNameOnAppear: Bool
+    let voice: StopVoiceHooks?
     @State private var picks: [PhotosPickerItem] = []
     @State private var importNote: String?
     @FocusState private var nameFocused: Bool
 
     init(stop: Stop, journey: Journey, costText: Binding<String>, minutesText: Binding<String>,
          showPlaceSearch: Binding<Bool>, photoStore: any PhotoStoring, canEditPhotos: Bool,
-         focusNameOnAppear: Bool = false) {
+         focusNameOnAppear: Bool = false, voice: StopVoiceHooks? = nil) {
+        self.voice = voice
         self.stop = stop
         self.journey = journey
         self._costText = costText
@@ -105,6 +117,12 @@ struct StopFormView: View {
         .onAppear { if focusNameOnAppear { nameFocused = true } }
     }
 
+    /// Row background that flashes yellow while dictation has just filled `key`, then fades back.
+    private func flash(_ key: String) -> Color? {
+        guard let voice else { return nil }   // no voice (iPhone, unsupported Mac): leave the row background alone
+        return voice.freshKeys.contains(key) ? KraftColor.highlighter : Color.clear
+    }
+
     // MARK: Sections
 
     private var placeSection: some View {
@@ -115,6 +133,7 @@ struct StopFormView: View {
                 .font(KraftFont.stopName(28, scaled: true))
                 .focused($nameFocused)
                 .accessibilityIdentifier("placeName")
+                .listRowBackground(flash("place"))
             Picker("Category", selection: Binding(get: { stop.category }, set: { stop.category = $0 })) {
                 Text("None").tag(StopCategory?.none)
                 ForEach(StopCategory.allCases, id: \.self) { c in
@@ -123,6 +142,7 @@ struct StopFormView: View {
                     }.tag(StopCategory?.some(c))
                 }
             }
+            .listRowBackground(flash("category"))
         } header: { Text("Place") }
     }
 
@@ -134,26 +154,28 @@ struct StopFormView: View {
                 .font(KraftFont.body(16, scaled: true))
                 .lineSpacing(KraftFont.bodyLineSpacing)
                 .frame(minHeight: 140)
+                .overlay(alignment: .topLeading) {
+                    if voice != nil, stop.story.isEmpty {
+                        Text("What do you remember? Or hold space and talk.")
+                            .font(KraftFont.body(16, scaled: true)).foregroundStyle(KraftColor.inkSoft.opacity(0.6))
+                            .padding(.leading, 5).allowsHitTesting(false)
+                    }
+                }
                 .accessibilityIdentifier("storyEditor")
-        } header: { Text("Story") } footer: {
+                .listRowBackground(flash("story"))
+        } header: {
+            if let voice {
+                HStack { Text("Story"); Spacer(); StoryVoiceLink(voice: voice) }
+            } else {
+                Text("Story")
+            }
+        } footer: {
             HStack { Spacer(); WordCounter(text: stop.story) }
         }
     }
 
     private var locationSection: some View {
-        Section("Location") {
-            if let addr = stop.address, !addr.isEmpty {
-                Text(addr)
-            }
-            if let lat = stop.latitude, let lon = stop.longitude {
-                Text(String(format: "%.4f, %.4f", lat, lon))
-                    .font(.footnote).foregroundStyle(KraftColor.inkSoft)
-            } else if stop.address?.isEmpty != false {
-                Text("No location yet").foregroundStyle(KraftColor.inkSoft)
-            }
-            Button { showPlaceSearch = true } label: { Label("Find this place", systemImage: "magnifyingglass") }
-                .accessibilityIdentifier("findPlace")
-        }
+        StopLocationSection(stop: stop, showPlaceSearch: $showPlaceSearch)
     }
 
     private var timeSection: some View {
@@ -166,6 +188,7 @@ struct StopFormView: View {
                     get: { stop.arrivalTime ?? journey.date }, set: { stop.arrivalTime = $0 }),
                     displayedComponents: [.hourAndMinute])
                     .environment(\.timeZone, TimeZone(identifier: journey.timeZoneID) ?? .current)
+                    .listRowBackground(flash("arrived"))
             }
             HStack {
                 Text("Time spent")
@@ -179,6 +202,7 @@ struct StopFormView: View {
                     in: 0...1440, step: 5)
                     .labelsHidden()
             }
+            .listRowBackground(flash("timeSpent"))
         }
     }
 
@@ -207,6 +231,7 @@ struct StopFormView: View {
                 get: { stop.highlight ?? "" },
                 set: { let t = EditorLogic.limitedChars($0, max: EditorLogic.highlightMaxChars)
                        stop.highlight = t.isEmpty ? nil : t }))
+                .listRowBackground(flash("highlight"))
         }
     }
 
@@ -228,6 +253,7 @@ struct StopFormView: View {
                 }
                 Spacer()
             }
+            .listRowBackground(flash("rating"))
             TextField("Short review", text: Binding(
                 get: { stop.review ?? "" },
                 set: { let t = EditorLogic.limitedChars($0, max: EditorLogic.reviewMaxChars)
@@ -253,7 +279,34 @@ struct StopFormView: View {
                 }
                 .labelsHidden()
             }
+            .listRowBackground(flash("cost"))
         }
+    }
+}
+
+/// "Hold to speak" on the Story header; does the same as the sidebar button.
+private struct StoryVoiceLink: View {
+    let voice: StopVoiceHooks
+    @State private var held = false
+
+    var body: some View {
+        HStack(spacing: 5) {
+            HStack(spacing: 2) {
+                ForEach(0..<3, id: \.self) { k in
+                    Capsule().frame(width: 2, height: k == 1 ? 10 : 6)
+                }
+            }
+            Text(voice.isListening ? "Listening…" : "Hold to speak").font(.system(size: 11.5))
+        }
+        .foregroundStyle(KraftColor.route)
+        .contentShape(Rectangle())
+        .gesture(DragGesture(minimumDistance: 0)
+            .onChanged { _ in if !held { held = true; voice.press() } }
+            .onEnded { _ in if held { held = false; voice.release() } })
+        .accessibilityElement()
+        .accessibilityLabel("Hold to speak")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("storyVoiceLink")
     }
 }
 
@@ -342,25 +395,65 @@ private struct PhotoTile: View {
     }
 }
 
+/// The "Location" block: address, coordinates and the "Find this place" button. Shared by the stop form and the Mac
+/// story's "Map location" section. `hint` replaces the "No location yet" line when there are no coordinates.
+struct StopLocationSection: View {
+    let stop: Stop
+    @Binding var showPlaceSearch: Bool
+    var hint: String? = nil
+
+    var body: some View {
+        Section("Location") {
+            if let addr = stop.address, !addr.isEmpty {
+                Text(addr)
+            }
+            if let lat = stop.latitude, let lon = stop.longitude {
+                Text(String(format: "%.4f, %.4f", lat, lon))
+                    .font(.footnote).foregroundStyle(KraftColor.inkSoft)
+            } else if let hint {
+                Text(hint).foregroundStyle(KraftColor.inkSoft)
+            } else if stop.address?.isEmpty != false {
+                Text("No location yet").foregroundStyle(KraftColor.inkSoft)
+            }
+            Button { showPlaceSearch = true } label: { Label("Find this place", systemImage: "magnifyingglass") }
+                .accessibilityIdentifier("findPlace")
+        }
+    }
+}
+
 // MARK: Place search
 
 struct PlaceSearchSheet: View {
     @Bindable var stop: Stop
     @Environment(\.servicePlaceLookup) private var lookup
+
+    var body: some View {
+        PlaceSearchContent(stop: stop, lookup: lookup)
+        #if os(macOS)
+            // A Mac sheet sizes itself to its content, and an empty list has none: the results had no room to draw.
+            .frame(minWidth: 460, minHeight: 380)
+        #endif
+    }
+}
+
+private struct PlaceSearchContent: View {
+    @Bindable var stop: Stop
     @Environment(\.dismiss) private var dismiss
-    @State private var query = ""
-    @State private var results: [PlaceCandidate] = []
-    @State private var searching = false
-    @State private var searched = false
+    @State private var model: PlaceSearchModel
+
+    init(stop: Stop, lookup: any PlaceLookup) {
+        self.stop = stop
+        _model = State(initialValue: PlaceSearchModel(lookup: lookup, latitude: stop.latitude,
+                                                      longitude: stop.longitude, query: stop.placeName))
+    }
 
     var body: some View {
         NavigationStack {
             List {
-                if results.isEmpty {
-                    Text(searching ? "Searching..." : (searched ? "No places found." : "Type a place name to search."))
-                        .foregroundStyle(KraftColor.inkSoft)
+                if let message = model.message {
+                    Text(message).foregroundStyle(KraftColor.inkSoft)
                 }
-                ForEach(results) { c in
+                ForEach(model.results) { c in
                     Button { apply(c) } label: {
                         VStack(alignment: .leading) {
                             Text(c.name).foregroundStyle(KraftColor.ink)
@@ -372,20 +465,12 @@ struct PlaceSearchSheet: View {
             .calmForm()
             .navigationTitle("Find this place")
             .inlineNavigationTitle()
-            .drawerSearchable(text: $query)
-            .onSubmit(of: .search) { Task { await run() } }
+            .drawerSearchable(text: Binding(get: { model.query },
+                                            set: { model.query = $0; model.queryChanged() }))
+            .onSubmit(of: .search) { model.submit() }
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
-            .task { query = stop.placeName; if !query.isEmpty { await run() } }
+            .task { model.submit() }
         }
-    }
-
-    private func run() async {
-        let q = query.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return }
-        searching = true
-        results = await lookup.search(q, nearLatitude: stop.latitude, nearLongitude: stop.longitude)
-        searching = false
-        searched = true
     }
 
     private func apply(_ c: PlaceCandidate) {

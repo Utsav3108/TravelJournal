@@ -22,7 +22,7 @@ struct TravelJournalMacApp: App {
     }
 
     var body: some Scene {
-        Window("My Stories", id: MacWindowID.shelf) {
+        Window("My Journeys", id: MacWindowID.shelf) {
             ShelfWindowRoot(store: store, placeLookup: placeLookup)
                 .environment(\.newJourneyRequests, newJourneyRequests)
                 .environment(\.syncState, sync.state)

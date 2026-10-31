@@ -35,7 +35,7 @@ struct MacShelfView: View {
                     bookcase(size: geo.size)
                 }
             }
-                .navigationTitle("My Stories")
+                .navigationTitle("My Journeys")
                 .searchable(text: $query, prompt: "Search journeys")
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
@@ -53,7 +53,7 @@ struct MacShelfView: View {
                     }
                     #if DEBUG
                     ToolbarItem(placement: .secondaryAction) {
-                        Button("Add sample journey", systemImage: "wand.and.stars") { SampleData.mumbai(in: context) }
+                        Button("Add sample journey", systemImage: "wand.and.stars") { SampleData.newYork(in: context) }
                             .accessibilityIdentifier("addSampleJourney")
                     }
                     #endif
@@ -177,7 +177,7 @@ struct MacShelfView: View {
                 .controlSize(.large)
                 .accessibilityIdentifier("newStoryEmpty")
                 #if DEBUG
-                Button("Add sample journey") { SampleData.mumbai(in: context) }
+                Button("Add sample journey") { SampleData.newYork(in: context) }
                     .buttonStyle(.link)
                     .font(.footnote)
                     .accessibilityIdentifier("addSampleJourneyEmpty")
@@ -273,10 +273,10 @@ struct MacShelfView: View {
     /// Debug launch args: -seedSample (one story), -seedLibrary N (N stories), -openSample (open the first story).
     private func debugLaunchArguments() {
         let args = ProcessInfo.processInfo.arguments
-        if args.contains("-seedSample"), journeys.isEmpty { SampleData.mumbai(in: context) }
+        if args.contains("-seedSample"), journeys.isEmpty { SampleData.newYork(in: context) }
         SampleData.seedFromLaunchArguments(in: context)
         if args.contains("-openSample") {
-            let journey = journeys.first ?? SampleData.mumbai(in: context)
+            let journey = journeys.first ?? SampleData.newYork(in: context)
             open(journey)
         }
     }

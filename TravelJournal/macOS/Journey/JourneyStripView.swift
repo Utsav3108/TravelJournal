@@ -8,6 +8,7 @@ struct JourneyStripView: View {
 
     @State private var position = ScrollPosition()
     @State private var legCard: StoryLeg?
+    @State private var photoCard: StoryPhoto?
     @State private var pointer: CGPoint = .zero
     @FocusState private var focused: Bool
 
@@ -34,13 +35,16 @@ struct JourneyStripView: View {
             }
             .coordinateSpace(name: Self.space)
             .onContinuousHover(coordinateSpace: .named(Self.space)) { phase in
-                if case .active(let p) = phase, legCard == nil { pointer = p }
+                if case .active(let p) = phase, legCard == nil, photoCard == nil { pointer = p }
             }
             .overlay(alignment: .topLeading) {
-                // Pages report a tapped leg without a position, so the popover hangs off the last pointer location.
+                // Pages report a tapped leg or photo without a position, so the popovers hang off the last pointer location.
                 Color.clear.frame(width: 1, height: 1).position(pointer)
                     .popover(item: $legCard) { leg in
                         LegCardView(leg: leg).padding(20).frame(width: 340, height: 280)
+                    }
+                    .popover(item: $photoCard) { photo in
+                        PhotoCardView(photo: photo, size: PhotoCardLayout.size(viewport: geo.size))
                     }
             }
             .onChange(of: geo.size, initial: true) { _, new in model.viewport = new }
@@ -58,7 +62,27 @@ struct JourneyStripView: View {
         .onAppear { focused = true }
         .onKeyPress(keys: [.leftArrow], phases: [.down, .repeat]) { press in step(-1, press) }
         .onKeyPress(keys: [.rightArrow], phases: [.down, .repeat]) { press in step(1, press) }
+        .onKeyPress(keys: [.space], phases: [.down, .repeat, .up]) { press in hold(press) }
         .accessibilityIdentifier("storyStrip")
+    }
+
+    /// Hold Space to dictate into the selected stop (edit mode only, never while typing in a field).
+    private func hold(_ press: KeyPress) -> KeyPress.Result {
+        guard press.modifiers.isEmpty, !TextInputFocus.isEditing else { return .ignored }
+        switch press.phase {
+        case .down:
+            guard model.voiceStop != nil else { return .ignored }
+            model.voicePress()
+            return .handled
+        case .repeat:
+            return model.voice?.phase == .listening ? .handled : .ignored   // key auto-repeat
+        case .up:
+            guard model.voice?.phase == .listening else { return .ignored }
+            model.voiceRelease()
+            return .handled
+        default:
+            return .ignored
+        }
     }
 
     private func step(_ direction: Int, _ press: KeyPress) -> KeyPress.Result {
@@ -81,7 +105,7 @@ struct JourneyStripView: View {
         // No outline on the pages: the strip is one continuous sheet, and a border would cut the route at every seam.
         // Selection and hover are shown in the sidebar.
         return StoryPageView(page: item.page, metrics: metrics,
-                             callbacks: StoryPageCallbacks(onLegTap: { leg in
+                             callbacks: StoryPageCallbacks(onPhotoTap: { photoCard = $0 }, onLegTap: { leg in
                                  // With the inspector open a leg click selects the leg for editing; otherwise it is a glance popover.
                                  if model.inspectorShown { model.selectLeg(leg.id) } else { legCard = leg }
                              }),

@@ -32,6 +32,25 @@ struct StoryMapTests {
         #expect(one == [CGPoint(x: 250, y: 150)])
     }
 
+    @Test func snapshotPointsAreMirroredIntoTopLeftOrigin() {
+        let p = CGPoint(x: 120, y: 40)
+        let flipped = MapKitImageEdge.topLeftOrigin(p, imageHeight: 300)
+        #expect(flipped == CGPoint(x: 120, y: 260))                       // x untouched, y counted from the top
+        #expect(MapKitImageEdge.topLeftOrigin(flipped, imageHeight: 300) == p)   // its own inverse
+        // A northern stop has a larger bottom-up y; after the flip it sits above a southern one.
+        let north = MapKitImageEdge.topLeftOrigin(CGPoint(x: 0, y: 250), imageHeight: 300)
+        let south = MapKitImageEdge.topLeftOrigin(CGPoint(x: 0, y: 50), imageHeight: 300)
+        #expect(north.y < south.y)
+    }
+
+    @Test func macPinsGetTheirOwnCacheEntries() {
+        #if os(macOS)
+        #expect(!MapKitImageEdge.pinOriginTag.isEmpty)       // entries cached with unflipped pins are never reused
+        #else
+        #expect(MapKitImageEdge.pinOriginTag.isEmpty)        // iOS keys are unchanged
+        #endif
+    }
+
     @Test func cacheKeyIsStableAndSensitive() {
         let s = CGSize(width: 511, height: 328)
         let a = MapProjection.cacheKey([cst, sid], size: s, scale: 2)

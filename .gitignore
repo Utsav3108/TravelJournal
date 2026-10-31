@@ -4,3 +4,8 @@ xcuserdata/
 build/
 DerivedData/
 .claude/worktrees/
+
+# Claude Code runtime folders (skills in .claude/skills are tracked)
+.claude/shots/
+.claude/worktrees/
+.claude/settings.local.json

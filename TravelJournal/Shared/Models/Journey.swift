@@ -17,6 +17,10 @@ final class Journey {
     var schemaTag: Int = 1
     /// JSON-encoded `ExportPrivacy` override for this journey; nil = use the global defaults (V4). Use `exportPrivacy`.
     var exportPrivacyData: Data?
+    /// The `Stop.id` this story is pinned at on the bookshelf map (V5); nil or a deleted stop = the default. See `StoryMapPins`.
+    var mapStopID: UUID?
+    /// The `StopPhoto.id` shown as this story's pin on the Mac map (V6); nil or a deleted photo = the cover photo.
+    var mapPinPhotoID: UUID?
 
     /// CloudKit requires to-many relationships to be optional. `originalName` keeps the V2 column ("stops") so the
     /// migration treats this as a rename, not a new relationship. Use `stops`.
@@ -67,6 +71,12 @@ final class Journey {
         if let id = coverPhotoID, let p = stops.flatMap({ $0.photos }).first(where: { $0.id == id }) { return p }
         if let h = stops.first?.hero { return h }
         return stops.lazy.compactMap { $0.hero }.first
+    }
+
+    /// Map pin photo: the chosen `mapPinPhotoID` if it still exists, else the cover photo, else nil.
+    var mapPinPhoto: StopPhoto? {
+        if let id = mapPinPhotoID, let p = allPhotos.first(where: { $0.id == id }) { return p }
+        return coverPhoto
     }
 
     /// "ARRIVED · 19 OCT 2026 · MUMBAI"

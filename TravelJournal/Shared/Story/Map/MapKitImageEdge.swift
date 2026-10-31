@@ -38,4 +38,29 @@ enum MapKitImageEdge {
         return snapshot.image.cgImage(forProposedRect: &rect, context: nil, hints: nil)
         #endif
     }
+
+    /// Where `snapshot.point(for:)` puts a coordinate, in top-left-origin points like the `CGImage` we draw. `UIImage` is
+    /// already top-left; `NSImage` counts y up from the bottom, so on macOS the y is mirrored.
+    static func point(for coordinate: CLLocationCoordinate2D, in snapshot: MKMapSnapshotter.Snapshot) -> CGPoint {
+        let p = snapshot.point(for: coordinate)
+        #if os(macOS)
+        return topLeftOrigin(p, imageHeight: snapshot.image.size.height)
+        #else
+        return p
+        #endif
+    }
+
+    /// Mirror a bottom-left-origin point into top-left-origin space (and back: it is its own inverse).
+    static func topLeftOrigin(_ p: CGPoint, imageHeight: CGFloat) -> CGPoint {
+        CGPoint(x: p.x, y: imageHeight - p.y)
+    }
+
+    /// Cache-key suffix. Mac pins were once cached unflipped, so those entries must not be reused; iOS keys are unchanged.
+    static let pinOriginTag: String = {
+        #if os(macOS)
+        "-y2"
+        #else
+        ""
+        #endif
+    }()
 }

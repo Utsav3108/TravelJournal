@@ -114,4 +114,50 @@ final class StoryMapPinsTests: XCTestCase {
         before.apply(to: j)
         XCTAssertEqual(j.mapStopID, j.stops[0].id)
     }
+
+    // MARK: Pin photo
+
+    private func addPhotos(_ j: Journey, count: Int) -> [StopPhoto] {
+        (0..<count).map { i in
+            let p = StopPhoto(orderIndex: i, isHero: i == 0)
+            context.insert(p)
+            p.stop = j.orderedStops[0]
+            return p
+        }
+    }
+
+    func testPinPhotoDefaultsToCoverPhoto() {
+        let j = story("A", stops: [("one", 1, 1)])
+        let photos = addPhotos(j, count: 2)
+        XCTAssertEqual(j.mapPinPhoto?.id, photos[0].id)
+    }
+
+    func testChosenPinPhotoWins() {
+        let j = story("A", stops: [("one", 1, 1)])
+        let photos = addPhotos(j, count: 2)
+        j.mapPinPhotoID = photos[1].id
+        XCTAssertEqual(j.mapPinPhoto?.id, photos[1].id)
+    }
+
+    func testDeletedPinPhotoFallsBackToCover() {
+        let j = story("A", stops: [("one", 1, 1)])
+        let photos = addPhotos(j, count: 2)
+        j.mapPinPhotoID = UUID()
+        XCTAssertEqual(j.mapPinPhoto?.id, photos[0].id)
+    }
+
+    func testNoPhotosMeansNoPinPhoto() {
+        let j = story("A", stops: [("one", 1, 1)])
+        XCTAssertNil(j.mapPinPhoto)
+    }
+
+    func testJourneyContentRoundTripsPinPhoto() {
+        let j = story("A", stops: [("one", 1, 1)])
+        let id = UUID()
+        j.mapPinPhotoID = id
+        let before = JourneyContent(j)
+        j.mapPinPhotoID = nil
+        before.apply(to: j)
+        XCTAssertEqual(j.mapPinPhotoID, id)
+    }
 }

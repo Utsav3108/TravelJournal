@@ -3,11 +3,11 @@ import ImageIO
 import OSLog
 import SwiftData
 
-// TJSchemaV1...V4 (frozen snapshots) live in SchemaV1Snapshot.swift ... SchemaV4Snapshot.swift.
+// TJSchemaV1...V5 (frozen snapshots) live in SchemaV1Snapshot.swift ... SchemaV5Snapshot.swift.
 
-/// V5 adds `Journey.mapStopID`, the stop a story is pinned at on the Mac bookshelf map (optional).
-enum TJSchemaV5: VersionedSchema {
-    static var versionIdentifier = Schema.Version(5, 0, 0)
+/// V6 adds `Journey.mapPinPhotoID`, the photo shown as the story's pin on the Mac map (optional; nil = cover photo).
+enum TJSchemaV6: VersionedSchema {
+    static var versionIdentifier = Schema.Version(6, 0, 0)
     static var models: [any PersistentModel.Type] { [Journey.self, Stop.self, StopPhoto.self, Leg.self] }
 }
 
@@ -15,7 +15,7 @@ enum TJMigrationPlan: SchemaMigrationPlan {
     /// Directory holding `Photos/` for the V2→V3 file import. `nil` = the default Application Support location.
     nonisolated(unsafe) static var photoBaseURL: URL?
 
-    static var schemas: [any VersionedSchema.Type] { [TJSchemaV1.self, TJSchemaV2.self, TJSchemaV3.self, TJSchemaV4.self, TJSchemaV5.self] }
+    static var schemas: [any VersionedSchema.Type] { [TJSchemaV1.self, TJSchemaV2.self, TJSchemaV3.self, TJSchemaV4.self, TJSchemaV5.self, TJSchemaV6.self] }
     static var stages: [MigrationStage] {
         [
             .lightweight(fromVersion: TJSchemaV1.self, toVersion: TJSchemaV2.self),
@@ -24,6 +24,7 @@ enum TJMigrationPlan: SchemaMigrationPlan {
                     didMigrate: { context in try PhotoFileMigration.finish(in: context, baseURL: photoBaseURL) }),
             .lightweight(fromVersion: TJSchemaV3.self, toVersion: TJSchemaV4.self),
             .lightweight(fromVersion: TJSchemaV4.self, toVersion: TJSchemaV5.self),
+            .lightweight(fromVersion: TJSchemaV5.self, toVersion: TJSchemaV6.self),
         ]
     }
 }
@@ -118,7 +119,7 @@ enum AppContainer {
     /// Opens the real on-disk store. Throws on failure (including a failed migration); never falls back to memory
     /// and never deletes or resets the existing store.
     static func open(cloudKit: Bool) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: TJSchemaV5.self)
+        let schema = Schema(versionedSchema: TJSchemaV6.self)
         let cfg = cloudKit
             ? ModelConfiguration(schema: schema, cloudKitDatabase: .private(cloudKitContainerID))
             : ModelConfiguration(schema: schema, cloudKitDatabase: .none)
@@ -132,7 +133,7 @@ enum AppContainer {
 
     /// In-memory container for previews and tests (and `-uitest`). Not used for real data.
     static func openInMemory() throws -> ModelContainer {
-        let schema = Schema(versionedSchema: TJSchemaV5.self)
+        let schema = Schema(versionedSchema: TJSchemaV6.self)
         let cfg = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         return try ModelContainer(for: schema, configurations: [cfg])
     }

@@ -71,12 +71,13 @@ struct JourneyContent: Equatable {
     var closingNote: String?
     var exportPrivacyData: Data?
     var mapStopID: UUID?
+    var mapPinPhotoID: UUID?
 
     @MainActor
     init(_ j: Journey) {
         title = j.title; date = j.date; city = j.city; country = j.country
         introNote = j.introNote; closingNote = j.closingNote
-        exportPrivacyData = j.exportPrivacyData; mapStopID = j.mapStopID
+        exportPrivacyData = j.exportPrivacyData; mapStopID = j.mapStopID; mapPinPhotoID = j.mapPinPhotoID
     }
 
     @MainActor
@@ -84,6 +85,7 @@ struct JourneyContent: Equatable {
         j.title = title; j.date = date; j.city = city; j.country = country
         j.introNote = introNote; j.closingNote = closingNote
         j.exportPrivacyData = exportPrivacyData; j.mapStopID = mapStopID
+        j.mapPinPhotoID = mapPinPhotoID
         j.updatedAt = .now
     }
 }

@@ -38,6 +38,7 @@ private struct JourneyInspectorForm: View {
         Form {
             JourneyFieldsSection(journey: journey)
             MapLocationSection(journey: journey)
+            MapPinSection(journey: journey)
             JourneyExportPrivacySection(journey: journey)
         }
         .calmForm()

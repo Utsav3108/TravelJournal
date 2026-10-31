@@ -48,15 +48,17 @@ private struct StoryPinMarker: View {
     let open: (UUID) -> Void
     @State private var showList = false
 
+    /// The newest story at this place supplies the photo (`journeyIDs` is newest first).
+    private var pinPhoto: StopPhoto? {
+        pin.journeyIDs.lazy.compactMap { id in journeys.first { $0.id == id } }.first?.mapPinPhoto
+    }
+
     var body: some View {
         Button {
             if pin.journeyIDs.count == 1, let id = pin.journeyIDs.first { open(id) } else { showList = true }
         } label: {
             ZStack(alignment: .topTrailing) {
-                Image(systemName: "mappin.circle.fill")
-                    .font(.system(size: 30))
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(.white, .red)
+                PhotoPinView(photo: pinPhoto)
                 if pin.journeyIDs.count > 1 {
                     Text("\(pin.journeyIDs.count)").font(.caption2.bold()).foregroundStyle(.white)
                         .padding(.horizontal, 5).background(.black, in: Capsule()).offset(x: 8, y: -4)

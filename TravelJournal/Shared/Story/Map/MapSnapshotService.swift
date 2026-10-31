@@ -55,7 +55,7 @@ final class MapSnapshotService {
         let idx = stopIndices ?? Array(points.indices)
         let zoomed = Self.isZoomedOut(mapMode)
         guard !points.isEmpty else { return Self.fallback(points: points, stopIndices: idx, size: size, mapMode: mapMode) }
-        let key = MapProjection.cacheKey(points, size: size, scale: scale, zoomedOut: zoomed)
+        let key = MapProjection.cacheKey(points, size: size, scale: scale, zoomedOut: zoomed) + MapKitImageEdge.pinOriginTag
         if let hit = memory[key] { return hit }
         if let hit = loadFromDisk(key: key, points: points, stopIndices: idx, size: size, scale: scale) {
             memory[key] = hit
@@ -123,7 +123,7 @@ final class MapSnapshotService {
         o.pointOfInterestFilter = .excludingAll
         MapKitImageEdge.forceLight(o)
         let snap = try await MKMapSnapshotter(options: o).start()
-        let pins = points.map { snap.point(for: CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon)) }
+        let pins = points.map { MapKitImageEdge.point(for: CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon), in: snap) }
         // Sanity: a blank/throttled snapshot has no usable pixels.
         guard let raw = MapKitImageEdge.cgImage(from: snap) else { throw CancellationError() }
         let actualScale = MapKitImageEdge.pixelScale(of: raw, forPointWidth: size.width)

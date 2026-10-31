@@ -22,7 +22,7 @@ struct JourneyShelfView: View {
                 KraftColor.paper.ignoresSafeArea()
                 if journeys.isEmpty { emptyState } else { shelf }
             }
-            .navigationTitle("My Stories")
+            .navigationTitle("My Journeys")
             .toolbar {
                 ToolbarItem(placement: .navigation) {
                     Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }

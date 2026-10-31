@@ -35,7 +35,7 @@ struct MacShelfView: View {
                     bookcase(size: geo.size)
                 }
             }
-                .navigationTitle("My Stories")
+                .navigationTitle("My Journeys")
                 .searchable(text: $query, prompt: "Search journeys")
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {

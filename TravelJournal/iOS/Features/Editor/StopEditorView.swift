@@ -175,19 +175,7 @@ struct StopFormView: View {
     }
 
     private var locationSection: some View {
-        Section("Location") {
-            if let addr = stop.address, !addr.isEmpty {
-                Text(addr)
-            }
-            if let lat = stop.latitude, let lon = stop.longitude {
-                Text(String(format: "%.4f, %.4f", lat, lon))
-                    .font(.footnote).foregroundStyle(KraftColor.inkSoft)
-            } else if stop.address?.isEmpty != false {
-                Text("No location yet").foregroundStyle(KraftColor.inkSoft)
-            }
-            Button { showPlaceSearch = true } label: { Label("Find this place", systemImage: "magnifyingglass") }
-                .accessibilityIdentifier("findPlace")
-        }
+        StopLocationSection(stop: stop, showPlaceSearch: $showPlaceSearch)
     }
 
     private var timeSection: some View {
@@ -404,6 +392,32 @@ private struct PhotoTile: View {
 
     private var image: CGImage? {
         StoredPhotos.image(photo: photo, maxPixel: ImageDecoding.maxPixel(forPoints: 160, scale: displayScale))
+    }
+}
+
+/// The "Location" block: address, coordinates and the "Find this place" button. Shared by the stop form and the Mac
+/// story's "Map location" section. `hint` replaces the "No location yet" line when there are no coordinates.
+struct StopLocationSection: View {
+    let stop: Stop
+    @Binding var showPlaceSearch: Bool
+    var hint: String? = nil
+
+    var body: some View {
+        Section("Location") {
+            if let addr = stop.address, !addr.isEmpty {
+                Text(addr)
+            }
+            if let lat = stop.latitude, let lon = stop.longitude {
+                Text(String(format: "%.4f, %.4f", lat, lon))
+                    .font(.footnote).foregroundStyle(KraftColor.inkSoft)
+            } else if let hint {
+                Text(hint).foregroundStyle(KraftColor.inkSoft)
+            } else if stop.address?.isEmpty != false {
+                Text("No location yet").foregroundStyle(KraftColor.inkSoft)
+            }
+            Button { showPlaceSearch = true } label: { Label("Find this place", systemImage: "magnifyingglass") }
+                .accessibilityIdentifier("findPlace")
+        }
     }
 }
 

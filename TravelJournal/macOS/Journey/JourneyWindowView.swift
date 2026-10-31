@@ -32,7 +32,7 @@ struct JourneyWindowView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            JourneySidebar(model: model, onAddStop: addStop)
+            JourneySidebar(model: model, journey: journey, onAddStop: addStop)
                 .navigationSplitViewColumnWidth(min: 220, ideal: 280, max: 360)
         } detail: {
             JourneyStripView(model: model)

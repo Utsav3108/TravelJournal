@@ -1,6 +1,7 @@
 #if os(macOS)
 import SwiftUI
 import SwiftData
+import CoreLocation
 
 /// The right-hand inspector: edits whatever is selected (a leg, a stop, else the journey itself) and applies changes
 /// live. The forms are the iPhone's, shared; this file only picks one and wires in undo and delete.
@@ -106,7 +107,30 @@ private struct LegInspector: View {
     var body: some View {
         LegEditorView(leg: leg)
             .undoTracked(LegContent(leg), target: leg) { $0.apply(to: leg) }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                HStack {
+                    Button("Open in Maps", action: openInMaps)
+                        .disabled(endpoints == nil)
+                        .help(endpoints == nil ? "Both stops need a location" : "Directions for this leg in Maps")
+                        .accessibilityIdentifier("openLegInMaps")
+                    Spacer()
+                }
+                .padding(12)
+                .background(.bar)
+            }
             .accessibilityIdentifier("legInspector")
+    }
+
+    private var endpoints: (from: Stop, to: Stop)? {
+        guard let from = leg.fromStop, let to = leg.toStop, from.coordinate != nil, to.coordinate != nil else { return nil }
+        return (from, to)
+    }
+
+    private func openInMaps() {
+        guard let (from, to) = endpoints, let a = from.coordinate, let b = to.coordinate else { return }
+        MapsLauncher.openLeg(fromName: from.placeName, from: Coordinate(latitude: a.latitude, longitude: a.longitude),
+                             toName: to.placeName, to: Coordinate(latitude: b.latitude, longitude: b.longitude),
+                             mode: leg.mode)
     }
 }
 

@@ -24,7 +24,7 @@ struct AppRootView: View {
     /// iPhone keeps its spine bookcase; the Mac shows face-out covers that reflow with the window.
     @ViewBuilder private var shelf: some View {
         #if os(macOS)
-        MacShelfView()
+        MacShelfContainer()
         #else
         JourneyShelfView()
         #endif

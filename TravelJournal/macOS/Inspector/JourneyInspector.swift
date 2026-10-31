@@ -37,6 +37,7 @@ private struct JourneyInspectorForm: View {
     var body: some View {
         Form {
             JourneyFieldsSection(journey: journey)
+            MapLocationSection(journey: journey)
             JourneyExportPrivacySection(journey: journey)
         }
         .calmForm()

@@ -34,7 +34,7 @@ struct StoryPageView: View {
     var body: some View {
         Group {
             switch page {
-            case .cover(let m): CoverPage(model: m, metrics: metrics)
+            case .cover(let m): CoverPage(model: m, metrics: metrics, callbacks: callbacks)
             case .overview(let m):
                 if metrics.mode == .interactive && overviewSnap == nil {
                     RouteOverviewPageLoader(model: m, metrics: metrics, onPinTap: callbacks.onPinTap, onLegTap: callbacks.onLegTap)

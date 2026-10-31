@@ -114,8 +114,8 @@ struct StopContentLayer: View {
             // Photos.
             if let hero = L.hero, let p = photos.first {
                 Polaroid(photo: loader.image(p, label: model.name.isEmpty ? "Photo" : model.name, points: hero.width), caption: model.name, width: hero.width, seed: "\(id)/hero")
-                    .placed(hero)
                     .photoTap(p, callbacks: callbacks, interactive: interactive)
+                    .placed(hero)
             }
             ForEach(Array(L.taped.enumerated()), id: \.offset) { i, rect in
                 let idx = i + 1
@@ -124,8 +124,8 @@ struct StopContentLayer: View {
                     let tapes = L.photoCount == 2 ? 2 : (L.photoCount == 3 && i == 0 ? 2 : 1)
                     TapedPhoto(photo: loader.image(p, points: rect.width), size: CGSize(width: rect.width - 8, height: rect.height - 8),
                                tapes: tapes, seed: "\(id)/photo/\(p.id)")
-                        .placed(rect)
                         .photoTap(p, callbacks: callbacks, interactive: interactive)
+                        .placed(rect)
                 }
             }
 
@@ -244,10 +244,24 @@ enum LegConnectorMetrics {
     static func showsLegLabel(interactive: Bool) -> Bool { !interactive }
 }
 
-private extension View {
+/// Where each tappable photo's tap area sits, by `StoryPhoto.id`, in the window's coordinate space. Tests read it to
+/// check a tap area is the photo itself and not the whole page.
+struct PhotoTapFrames: PreferenceKey {
+    static let defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
+extension View {
+    /// Makes a photo tappable. Apply it to the photo itself, BEFORE `.placed(_:)`: `placed` positions the view in a
+    /// page-sized frame, so a tap area added after it would cover the whole page and the last photo would win every tap.
     @ViewBuilder func photoTap(_ photo: StoryPhoto, callbacks: StoryPageCallbacks, interactive: Bool) -> some View {
         if interactive, let tap = callbacks.onPhotoTap {
-            contentShape(Rectangle()).onTapGesture { tap(photo) }
+            background(GeometryReader { g in
+                Color.clear.preference(key: PhotoTapFrames.self, value: [photo.id: g.frame(in: .global)])
+            })
+            .contentShape(Rectangle()).onTapGesture { tap(photo) }
         } else {
             self
         }
